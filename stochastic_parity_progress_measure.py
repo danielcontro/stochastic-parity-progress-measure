@@ -10,6 +10,7 @@ from z3 import (
     ExprRef,
     ModelRef,
     Optimize,
+    Or,
     Solver,
     sat,
     unsat,
@@ -18,31 +19,40 @@ from sympy import Expr, Symbol, Matrix, linear_eq_to_matrix, zeros
 
 from utils import (
     VarMap,
+    get_q_assignment,
     get_z3_var_map,
     parse_DNF,
     parse_conjunct,
     parse_constraint,
     parse_expr,
     parse_matrix,
+    parse_q_assignment,
+    sympy_dnf_to_z3,
     unzip,
     update_var_map,
+    z3_real_to_float,
 )
 
-PriorityCondition = Boolean
+ParityObjective = Boolean
 
 
 class SPPM:
-    def __init__(self, rm: ReactiveModule, v: list[PriorityCondition]) -> None:
+    def __init__(
+        self, system: ReactiveModule, q: list[int], v: list[ParityObjective]
+    ) -> None:
         """
         Methods for computing the stochastic parity progress measure for a
         given reactive module and a given property (passed as boolean indicator
         functions for priority levels).
         """
         self._counter = 0
-        self._system = rm
-        update_var_map(rm._vars)
+        self._system = system
+        update_var_map(system._vars)
         self._fresh_vars = []
         self._v = v
+        # set of valuations of the symbol "q" assumed to be in the system
+        # which is a product guarded transition system
+        self._q = q
 
     def fresh_var(self, prefix: str) -> Symbol:
         self._counter += 1
@@ -101,53 +111,36 @@ class SPPM:
 
     def v_j_constraint(
         self,
+        i: int,
         j: int,
         guards: list[tuple[int, Guard]],
         template: tuple[Matrix, Symbol],
         prog_vars: ProgramVariables,
+        q: int,
     ) -> tuple[list[ExprRef], list[tuple[Symbol, int]]]:
-        print()
-        print("V[", j, "]:", self._v[j])
         a_template, _ = template
         constraints: list[ExprRef] = []
         decrement_vars: list[tuple[Symbol, int]] = []
         v_j_conjuncts = list(enumerate(parse_DNF(self._v[j])))
-        print("V_j conjuncts:", v_j_conjuncts)
-        print("Guards :", [g for g in guards])
 
         for guard in guards:
-            print()
-            print()
-            print("Guard:", guard)
             guard_conjuncts = parse_DNF(guard[1])
-            print("Guard conjuncts:", guard_conjuncts)
-            print("V_j conjuncts:", v_j_conjuncts)
 
             for guard_conjunct, v_j_conjunct in itertools.product(
                 guard_conjuncts, v_j_conjuncts
             ):
-                print()
-                print("Guard_conj:", guard_conjunct)
-                print("V_j_conj:", v_j_conjunct)
-                parsed_guard_conj = parse_conjunct(guard_conjunct)
-                parsed_v_j_conj = parse_conjunct(v_j_conjunct[1])
-                print("Parsed guard conjunct:", parsed_guard_conj)
-                print("Parsed V_j conjunct:", parsed_v_j_conj)
-                print("Constraints", (parsed_guard_conj + parsed_v_j_conj))
                 premise_constraints = list(
                     # Convert conjunct of constraints to z3 representation
                     itertools.chain.from_iterable(
                         map(
                             parse_constraint,
                             parse_conjunct(guard_conjunct)
-                            + parse_conjunct(v_j_conjunct[1]),
+                            + parse_conjunct(v_j_conjunct[1])
+                            + [get_q_assignment(Symbol("q"), q)],
                         )
                     )
                 )
-                print("Premise constraints:", premise_constraints)
                 a, b = linear_eq_to_matrix(premise_constraints, prog_vars)
-                print("A:", a)
-                print("b:", b)
                 assert isinstance(a, Matrix) and isinstance(b, Matrix)
 
                 ax_z3 = parse_matrix(a * Matrix(prog_vars))
@@ -155,23 +148,24 @@ class SPPM:
 
                 # Check if the premise is satisfiable, otherwise skip
                 premise = And([ax_z3[i][0] <= b_z3[i][0] for i in range(len(ax_z3))])
-                print("Premise:", premise)
                 if not self.satisfiable(premise):
-                    print("Premise not satisfiable, skipped V_" + str(j))
+                    print("Premise not satisfiable, skipped premise:", premise)
                     continue
 
                 actions_transitions = self._system.transitions(guard[0])
 
-                if j % 2:
-                    # same epsilon decrease for all the possible actions
-                    eps = self.fresh_var(
-                        "epsilon_" + str(j) + "_" + str(v_j_conjunct[0])
-                    )
-                    decrement_vars.append((eps, guard[0]))
-                    print("New decrement var:", eps)
-                    z3_eps = get_z3_var_map()[eps.name]
+                # same epsilon decrease for all non-deterministic actions
+                eps = self.fresh_var("epsilon_" + str(j) + "_" + str(v_j_conjunct[0]))
+                decrement_vars.append((eps, guard[0]))
+
+                z3_eps = get_z3_var_map()[eps.name]
+                if j % 2 and j == i:
+                    # if j odd and j == i epsilon must be strictly positive
+                    constraints.append(0 < z3_eps)
+                else:
                     constraints.append(0 <= z3_eps)
-                    constraints.append(z3_eps <= 1)
+
+                constraints.append(z3_eps <= 1)
 
                 for transitions in actions_transitions:
                     distribution, updates = unzip(transitions)
@@ -192,55 +186,89 @@ class SPPM:
                     )
 
                     # d = -a_template * \sum(p_i * b_i) (- epsilon_g if j is odd
-                    d = -a_template.dot(
-                        sum(
-                            map(
-                                lambda p_i, b_i: p_i * b_i,
-                                distribution,
-                                updates_b,
-                            ),
-                            zeros(len(prog_vars), 1),
+                    d = (
+                        -a_template.dot(
+                            sum(
+                                map(
+                                    lambda p_i, b_i: p_i * b_i,
+                                    distribution,
+                                    updates_b,
+                                ),
+                                zeros(len(prog_vars), 1),
+                            )
                         )
+                        - eps
                     )
 
-                    if j % 2:
-                        # Odd priority level, add epsilon decrease to constraint
-                        d = d - eps
-
                     constraints.append(self.farkas_lemma(a, b, c_t.transpose(), d))
-        print("V[", j, "] done")
+        # print("V[", j, "] done")
         return constraints, decrement_vars
+
+    def _get_linear_template(self, prefix: str, n: int) -> tuple[Matrix, Symbol]:
+        return (
+            self.fresh_var_vec(prefix + "_a", n, True),
+            self.fresh_var(prefix + "_b"),
+        )
 
     def _is_ranked_guard(
         self, var_map: VarMap, model: ModelRef, eps: tuple[Symbol, int]
     ) -> bool:
         z3_symb = var_map[eps[0].name]
-        return (
-            float(model[z3_symb].as_string()) > 0.0
-            if model[z3_symb] is not None
-            else False
-        )
+        return model.eval(z3_symb > 0)
 
-    def alpha(self, i: int, guards: list[tuple[int, Guard]]):
-        print("Synthesizing alpha_" + str(i))
+    def alpha(self, i: int, guards: list[tuple[int, Guard]], q: int):
         epsilons: list[tuple[Symbol, int]] = []
         constraints: list[ExprRef] = []
-        template = (
-            self.fresh_var_vec("alpha_" + str(i) + "_a", len(self._system.vars), True),
-            self.fresh_var("alpha_" + str(i) + "_b"),
+        template = self._get_linear_template(
+            "alpha_" + str(i) + "_q_" + str(q), len(self._system.vars)
         )
-        print("Template a: ", template[0])
         lp = Optimize()
-        # force alpha to be non-negative
-        lp.add(parse_expr(template[0].dot(self._system.vars) + template[1]) >= 0)
+        # force alpha_i_q to be non-negative
+        non_negativity = (
+            parse_expr(template[1].dot(self._system.vars) + template[1]) >= 0
+        )
+        lp.add(non_negativity)
         for j in range(i, len(self._v)):
             v_j_constraints, v_j_epsilons = self.v_j_constraint(
-                j, guards, template, self._system.vars
+                i, j, guards, template, self._system.vars, q
             )
             constraints.extend(v_j_constraints)
             epsilons.extend(v_j_epsilons)
             lp.add(constraints)
 
+        if len(epsilons) == 0:
+            # if constraints == [] and q \in V_even then alpha_i_q = 0
+            v_even = list(
+                map(
+                    lambda iv: iv[1],
+                    filter(lambda iv: iv[0] % 2 == 0, enumerate(self._v)),
+                )
+            )
+            q_evens_list = list(
+                map(
+                    lambda v: self.satisfiable(
+                        And(
+                            parse_q_assignment(get_q_assignment(Symbol("q"), q)),
+                            sympy_dnf_to_z3(v),
+                        )
+                    ),
+                    v_even,
+                )
+            )
+            return ([[0.0] * len(self._system.vars)], 0.0), guards
+            # if any(q_evens_list):
+            #     pass
+            #     # Constant 0 function and empty set of guards
+            #     return ([[0.0] * len(self._system.vars)], 0.0), []
+            # else:
+            #     raise RuntimeError(
+            #         "No solution for linear program computing alpha_"
+            #         + str(i)
+            #         + "_q_"
+            #         + str(q)
+            #     )
+
+        print("non_negativity:", non_negativity)
         print("Constraints:", constraints)
         print("Epsilons:", epsilons)
         objective_f = sum(map(parse_expr, map(lambda e: e[0], epsilons)), 0.0)
@@ -253,33 +281,41 @@ class SPPM:
             )
 
         model = lp.model()
-        print("Model:", model)
+        # print("Model:", model)
         var_map = get_z3_var_map()
         is_ranked_guard = partial(self._is_ranked_guard, var_map, model)
         ranked_guards_idx = list(map(lambda x: x[1], filter(is_ranked_guard, epsilons)))
-        print("Ranked guards:", ranked_guards_idx)
+        # print("Ranked guards:", ranked_guards_idx)
         updated_guards = list(filter(lambda x: x[0] not in ranked_guards_idx, guards))
         z3_alpha_i_a, z3_alpha_i_b = parse_matrix(template[0]), parse_expr(template[1])
-        alpha_i_a = [
-            [float(model[var].as_string()) for var in row] for row in z3_alpha_i_a
-        ]
-        alpha_i_b = float(model[z3_alpha_i_b].as_string())
+        alpha_i_a = [[model[var] for var in row] for row in z3_alpha_i_a]
+        alpha_i_b = z3_real_to_float(model[z3_alpha_i_b])
 
-        print("Z3 alpha_i_a:", z3_alpha_i_a)
-        print("Z3 alpha_i_b:", z3_alpha_i_b)
-        print("Alpha_i_a:", alpha_i_a)
-        print("Alpha_i_b:", alpha_i_b)
+        if model.eval(objective_f) == 0.0:
+            # No solution for linear program
+            raise RuntimeError(
+                "No solution for linear program computing alpha_" + str(i)
+            )
+
+        # print("Z3 alpha_i_a:", z3_alpha_i_a)
+        # print("Z3 alpha_i_b:", z3_alpha_i_b)
+        # print("Alpha_i_a:", alpha_i_a)
+        # print("Alpha_i_b:", alpha_i_b)
         # return alpha_i function and updated_guards (not ranked ones)
-        print("alpha_" + str(i), "done")
         return (alpha_i_a, alpha_i_b), updated_guards
 
     def synthesize(self):
         guards = list(enumerate(self._system.guards))
-        alpha = []
-        for i in range(len(self._v)):
-            alpha_i, guards = self.alpha(i, guards)
-            alpha.append(alpha_i)
+        alpha = [{} for _ in range(len(self._v))]
+        print("Alpha:", alpha)
+        for q in self._q:
+            # Fix q and then synthesize an SPPM for q
+            for i in range(len(self._v)):
+                print("Synthesizing alpha_" + str(i) + "_q_" + str(q))
+                alpha_i, guards = self.alpha(i, guards, q)
+                print("Done synthesizing alpha_" + str(i) + "_q_" + str(q))
+                alpha[i].update({q: alpha_i})
 
-            if guards == []:
-                break
+                if guards == []:
+                    break
         return alpha

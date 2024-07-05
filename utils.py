@@ -3,10 +3,11 @@ from functools import reduce
 import operator
 from typing import Self, TypeVar
 
-from sympy import And, Matrix, Or, Symbol, Number, Add, Expr, Mul, Pow
+from sympy import And, Eq, Matrix, Or, Symbol, Number, Add, Expr, Mul, Pow
 from sympy.core.relational import Relational
 from sympy.logic.boolalg import Boolean
 from z3 import ArithRef, BoolRef, Real, Sqrt
+import z3
 
 
 z3Mat = list[list[ArithRef | float]]
@@ -191,7 +192,6 @@ def _sympy_to_z3_rec(e: Expr):
         + str(e)
         + "'."
     )
-    return 0.0
 
 
 def parse_DNF(dnf: Boolean) -> list[Boolean]:
@@ -209,6 +209,35 @@ def parse_conjunct(conjunct: Boolean) -> list[Relational]:
         return conjs
 
     return [conjunct]
+
+
+def _parse_constr(conjunct: Relational):
+    ordering = conjunct.rel_op
+    match ordering:
+        case "<":
+            return parse_expr(conjunct.lhs) < 0
+        case "<=":
+            return parse_expr(conjunct.lhs) <= 0
+        case ">":
+            return parse_expr(conjunct.lhs) > 0
+        case ">=":
+            return parse_expr(conjunct.lhs) >= 0
+        case "==":
+            return parse_expr(conjunct.lhs) == 0
+        case _:
+            RuntimeError("Invalid ordering")
+
+
+def sympy_dnf_to_z3(dnf: Boolean) -> list[BoolRef]:
+    conjs = parse_DNF(dnf)
+    constraints = list(map(parse_conjunct, conjs))
+    return z3.Or(list(map(lambda x: z3.And(list(map(_parse_constr, x))), constraints)))
+
+
+def z3_real_to_float(z3_real: ArithRef) -> float:
+    # fract = z3_real.as_fraction()
+    # return float(fract.numerator) / float(fract.denominator)
+    return float(z3_real.as_decimal(10))
 
 
 def parse_constraint(constraint: Relational) -> list[Expr]:
@@ -235,6 +264,17 @@ def parse_constraint(constraint: Relational) -> list[Expr]:
             return [constraint.lhs, -constraint.lhs]
         case _:
             raise RuntimeError("Invalid constraint kind")
+
+
+def parse_q_assignment(r: Relational):
+    assert isinstance(r, Eq)
+    add = r.lhs
+    assert isinstance(add, Add) or isinstance(add, Symbol)
+    return parse_expr(add) == 0
+
+
+def get_q_assignment(s: Symbol, q: int) -> Relational:
+    return Eq(Add(s, -q), 0)
 
 
 T = TypeVar("T")
