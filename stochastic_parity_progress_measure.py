@@ -225,7 +225,7 @@ class SPPM:
         lp = Optimize()
         # force alpha_i_q to be non-negative
         non_negativity = (
-            parse_expr(template[1].dot(self._system.vars) + template[1]) >= 0
+            parse_expr(template[0].dot(self._system.vars) + template[1]) >= 0
         )
         lp.add(non_negativity)
         for j in range(i, len(self._v)):
