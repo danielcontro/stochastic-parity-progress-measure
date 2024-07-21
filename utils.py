@@ -3,7 +3,22 @@ from functools import reduce
 import operator
 from typing import Self, TypeVar
 
-from sympy import And, Eq, Matrix, Or, Symbol, Number, Add, Expr, Mul, Pow
+from sympy import (
+    And,
+    Eq,
+    GreaterThan,
+    LessThan,
+    Matrix,
+    Or,
+    StrictGreaterThan,
+    StrictLessThan,
+    Symbol,
+    Number,
+    Add,
+    Expr,
+    Mul,
+    Pow,
+)
 from sympy.core.relational import Relational
 from sympy.logic.boolalg import Boolean
 from z3 import ArithRef, BoolRef, Real, Sqrt
@@ -130,7 +145,7 @@ def split_disjunctions(e: BoolRef):
 
 def parse_matrix(m: Matrix) -> z3Mat:
     return [
-        [parse_expr(m[row, column]) for column in range(m.shape[1])]
+        [to_z3_expr(m[row, column]) for column in range(m.shape[1])]
         for row in range(m.shape[0])
     ]
 
@@ -146,7 +161,11 @@ def get_z3_var_map() -> VarMap:
     return _VAR_MAP
 
 
-def parse_expr(exp: Expr) -> ArithRef | float:
+def get_z3_var(var: Symbol) -> ArithRef:
+    return get_z3_var_map().get(var.name)
+
+
+def to_z3_expr(exp: Expr) -> ArithRef | float:
     "convert a sympy expression to a z3 expression. This returns (z3_vars, z3_expression)"
 
     result_exp = _sympy_to_z3_rec(exp)
@@ -161,10 +180,10 @@ def _sympy_to_z3_rec(e: Expr):
         raise RuntimeError("Expected sympy Expr: " + repr(e))
 
     if isinstance(e, Symbol):
-        z3_var = get_z3_var_map().get(e.name)
+        z3_var = get_z3_var(e)
 
         if z3_var is None:
-            raise RuntimeError("No var was corresponds to symbol '" + str(e) + "'")
+            raise RuntimeError(f"No var was corresponds to symbol '{e}'")
         return z3_var
 
     elif isinstance(e, Number):
@@ -185,12 +204,8 @@ def _sympy_to_z3_rec(e: Expr):
         return _sympy_to_z3_rec(e.args[0]) ** exponent
 
     raise RuntimeError(
-        "Type '"
-        + str(type(e))
-        + "' is not yet implemented for convertion to a z3 expresion. "
-        + "Subexpression was '"
-        + str(e)
-        + "'."
+        f"Type '{type(e)}' is not yet implemented for convertion to z3."
+        + f"Subexpression was '{e}'."
     )
 
 
@@ -211,33 +226,31 @@ def parse_conjunct(conjunct: Boolean) -> list[Relational]:
     return [conjunct]
 
 
-def _parse_constr(conjunct: Relational):
-    ordering = conjunct.rel_op
-    match ordering:
+def _parse_constr(conjunct: Relational) -> BoolRef:
+    match conjunct.rel_op:
         case "<":
-            return parse_expr(conjunct.lhs) < 0
+            return to_z3_expr(conjunct.lhs) < 0
         case "<=":
-            return parse_expr(conjunct.lhs) <= 0
+            return to_z3_expr(conjunct.lhs) <= 0
         case ">":
-            return parse_expr(conjunct.lhs) > 0
+            return to_z3_expr(conjunct.lhs) > 0
         case ">=":
-            return parse_expr(conjunct.lhs) >= 0
+            return to_z3_expr(conjunct.lhs) >= 0
         case "==":
-            return parse_expr(conjunct.lhs) == 0
+            return to_z3_expr(conjunct.lhs) == 0
         case _:
-            RuntimeError("Invalid ordering")
+            raise RuntimeError("Invalid ordering")
 
 
-def sympy_dnf_to_z3(dnf: Boolean) -> list[BoolRef]:
+def to_z3_dnf(dnf: Boolean) -> list[BoolRef]:
     conjs = parse_DNF(dnf)
     constraints = list(map(parse_conjunct, conjs))
     return z3.Or(list(map(lambda x: z3.And(list(map(_parse_constr, x))), constraints)))
 
 
 def z3_real_to_float(z3_real: ArithRef) -> float:
-    # fract = z3_real.as_fraction()
-    # return float(fract.numerator) / float(fract.denominator)
-    return float(z3_real.as_decimal(10))
+    fract = z3_real.as_fraction()
+    return float(fract.numerator) / float(fract.denominator)
 
 
 def parse_constraint(constraint: Relational) -> list[Expr]:
@@ -270,7 +283,7 @@ def parse_q_assignment(r: Relational):
     assert isinstance(r, Eq)
     add = r.lhs
     assert isinstance(add, Add) or isinstance(add, Symbol)
-    return parse_expr(add) == 0
+    return to_z3_expr(add) == 0
 
 
 def get_q_assignment(s: Symbol, q: int) -> Relational:
