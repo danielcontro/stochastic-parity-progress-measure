@@ -5,6 +5,7 @@ from reactive_module import Guard, ReactiveModule
 import itertools
 
 from z3 import (
+    And as z3_And,
     BoolRef,
     ExprRef,
     ModelRef,
@@ -135,7 +136,7 @@ class SPPM:
                 b_z3 = parse_matrix(b)
 
                 # Check if the premise is satisfiable, otherwise skip
-                premise = z3.And([ax_z3[i][0] <= b_z3[i][0] for i in range(len(ax_z3))])
+                premise = z3_And([ax_z3[i][0] <= b_z3[i][0] for i in range(len(ax_z3))])
                 if not self.satisfiable(premise):
                     print("Premise not satisfiable, skipped premise:", premise)
                     continue
@@ -226,8 +227,8 @@ class SPPM:
 
         if len(epsilons) == 0:
             # No premise is satisfiable, thus the synthesis has finished,
-            # return 0 function and empty set of guards
-            return ([[0.0] * len(self._system.vars)], 0.0), []
+            # return 0 function and empty set of guards?
+            return ([[0.0] * len(self._system.vars)], 0.0), guards
 
         # Add soft constraints for epsilon variables positivity
         for eps in epsilons:
@@ -288,7 +289,7 @@ class SPPM:
                         lambda g: self.satisfiable(to_z3_dnf(g)),
                         map(
                             lambda g: And(
-                                parse_conjunct(g).append(Eq(Add(Symbol("q"), -s), 0))
+                                *(parse_conjunct(g) + [Eq(Add(Symbol("q"), -s), 0)])
                             ),
                             guards,
                         ),

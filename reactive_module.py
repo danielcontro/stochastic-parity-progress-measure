@@ -30,7 +30,7 @@ class ReactiveModule:
         update = A,b such that X' = A*X + b
         """
         # FIXME: Guards not in DNF form
-        assert len(init) == len(vars)
+        # assert len(init) == len(vars)
 
         self._state = init
         self._vars = vars

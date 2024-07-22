@@ -89,7 +89,7 @@ body: list[tuple[Guard, list[list[Transition]]]] = [
     ),  # s > 0, q = 3
 ]
 
-rm = ReactiveModule(init, vars, body)
+rm = ReactiveModule([init], vars, body)
 
 gf_s0_gf_s4: list[ParityObjective] = [
     Or(And(Eq(q, 0)), And(Eq(Add(q, -2), 0))),
@@ -98,11 +98,11 @@ gf_s0_gf_s4: list[ParityObjective] = [
 
 q_val = [0, 1, 2, 3]
 
-sppm = SPPM(rm, q_val, gf_s0_gf_s4)
+sppm = SPPM(rm)
 
 print("Starting synthesising")
 start_time = time()
-alpha = sppm.synthesize()
+alpha = sppm.synthesize_dpa_based(q_val, gf_s0_gf_s4)
 elapsed = time() - start_time
 [print("Alpha:", alpha_i) for alpha_i in alpha]
 print("Elapsed time:", elapsed)
