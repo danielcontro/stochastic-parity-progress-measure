@@ -1,28 +1,29 @@
-import functools
-from itertools import accumulate
-import itertools
-from typing import Optional, Self
+from itertools import chain
 
 from sympy import Matrix, Symbol
 from sympy.logic.boolalg import Boolean
 
 from z3 import BoolRef, Solver
 
+from utils import SPLinearFunction, snd
+
 
 ProgramVariables = tuple[Symbol, ...]
+ProgramState = tuple[float, ...]
 Guard = Boolean
-Update = tuple[Matrix, Matrix]
-Transition = tuple[float, Update]
-StochasticUpdate = list[tuple[float, Update]]
+Update = SPLinearFunction
+ProbabilisticUpdate = tuple[float, Update]
+StochasticUpdate = list[ProbabilisticUpdate]
 NonDeterministicStochasticUpdate = list[StochasticUpdate]
+GuardedCommand = tuple[Guard, NonDeterministicStochasticUpdate]
 
 
 class ReactiveModule:
     def __init__(
         self,
-        init: list[tuple[float, ...]],
+        init: list[ProgramState],
         vars: ProgramVariables,
-        body: list[tuple[Guard, list[list[Transition]]]],
+        body: list[GuardedCommand],
     ):
         """
         Assume guards mutually exclusive and given as conjunction of inequalities/equalities
@@ -32,17 +33,36 @@ class ReactiveModule:
         # FIXME: Guards not in DNF form
         # assert len(init) == len(vars)
 
-        self._state = init
+        self._init = init
         self._vars = vars
         self._body = body
+
+    @property
+    def init(self) -> list[ProgramState]:
+        return self._init
+
+    @property
+    def vars(self) -> ProgramVariables:
+        return self._vars
+
+    @property
+    def body(self):
+        return self._body
 
     @property
     def guards(self) -> list[Guard]:
         return list(map(lambda el: el[0], self._body))
 
     @property
-    def vars(self) -> ProgramVariables:
-        return self._vars
+    def updates(self) -> list[Update]:
+        return list(
+            map(
+                snd,
+                chain.from_iterable(
+                    map(lambda el: chain.from_iterable(snd(el)), self._body)
+                ),
+            )
+        )
 
     def _eval_guard(self, guard: BoolRef, state: tuple[float, ...]) -> bool:
         assignments = [x == v for x, v in zip(self._vars, state)]
@@ -53,5 +73,7 @@ class ReactiveModule:
         assert isinstance(eval, bool)
         return eval
 
-    def transitions(self, guard_idx: int) -> list[list[Transition]]:
-        return self._body[guard_idx][1]
+    def get_nth_command_updates(
+        self, command_idx: int
+    ) -> NonDeterministicStochasticUpdate:
+        return self._body[command_idx][1]
