@@ -16,7 +16,7 @@ from sympy import (
 )
 
 from reactive_module import ReactiveModule
-from stochastic_parity_progress_measure import SPPM, ParityObjective
+from parity_supermartingale import ParitySupermartingale, ParityObjective
 
 # module M
 #   ticking  : bool init false;
@@ -65,12 +65,12 @@ gf_waiting_requests: list[ParityObjective] = [Eq(dpa, 0), Eq(Add(dpa, -1), 0)]
 
 q = [0, 1]
 
-rm = ReactiveModule(init, pvars, body)
-sppm = SPPM(rm, q, gf_waiting_requests)
+rm = ReactiveModule([init], pvars, body)
+psm = ParitySupermartingale(rm)
 
 print("Starting synthesising")
 start_time = time()
-alpha = sppm.synthesize()
+lex_psm = psm.verification(q, gf_waiting_requests)
 elapsed = time() - start_time
-print("Alpha:", alpha)
+print("PSM:", lex_psm)
 print("Elapsed time:", elapsed)
