@@ -6,6 +6,7 @@ from reactive_module import (
     NonDeterministicStochasticUpdate,
     ProbabilisticUpdate,
     ProgramState,
+    ProgramVariables,
     ReactiveModule,
 )
 
@@ -56,6 +57,27 @@ LinPSM = LinearFunction
 LinLexPSM = list[dict[int, LinPSM]]
 
 
+def pretty_lin_psm(vars: ProgramVariables, linear_psm: LinPSM):
+    a = Matrix(linear_psm[0])
+    b = Matrix(linear_psm[1])
+    return (a * Matrix(vars) + b)[0, 0]
+
+
+def pretty_state_based_lin_function(
+    vars: ProgramVariables, lin_func: StateBasedLinearFunction
+):
+    return dict(map(lambda x: (x[0], pretty_lin_psm(vars, x[1])), lin_func.items()))
+
+
+def pretty_lin_lex_psm(vars: ProgramVariables, lin_lex_psm: LinLexPSM):
+    return list(
+        map(
+            partial(pretty_state_based_lin_function, vars),
+            lin_lex_psm,
+        )
+    )
+
+
 class ParitySupermartingale:
     def __init__(
         self,
@@ -68,7 +90,6 @@ class ParitySupermartingale:
         """
         self._counter = 0
         self._system = system
-        update_var_map(system._vars)
         self._fresh_vars = []
 
     def _fresh_var(self, prefix: str) -> Symbol:
@@ -402,9 +423,9 @@ class ParitySupermartingale:
             # by a linear function otherwise we can't compute I(x',q')
             u_a, u_b = update
 
-            assert u_a.row(q_index) == zeros(1, u_a.shape[1])
+            assert u_a.row(q_index) == zeros(1, u_a.cols)
 
-            next_q: int = u_b[0, 0]
+            next_q: int = u_b[q_index, 0]
 
             q, inv = q_inv
             inv_a, inv_b = inv

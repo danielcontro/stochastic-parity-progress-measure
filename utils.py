@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+import enum
 from functools import reduce
 from itertools import chain
 import operator
@@ -20,10 +21,11 @@ from sympy import (
     Mul,
     Pow,
     linear_eq_to_matrix,
+    zeros,
 )
 from sympy.core.relational import Relational
 from sympy.logic.boolalg import Boolean, BooleanFalse
-from z3 import ArithRef, BoolRef, Real, Sqrt
+from z3 import ArithRef, BoolRef, Real, Solver, Sqrt, sat
 import z3
 
 SPLinearFunction = tuple[Matrix, Matrix]
@@ -217,3 +219,32 @@ def DNF_to_linear_function(dnf: Boolean, vars: tuple[Symbol, ...]) -> SPLinearFu
     )
     a, neg_b = linear_eq_to_matrix(constraints, vars)
     return a, -neg_b
+
+
+def extend_matrix(a: Matrix, ext: Matrix) -> Matrix:
+    """
+    Given two matrices `a` and `ext`, return the matrix
+    a | 0
+    -------
+    0 | ext
+    Example:
+    a = [1   2]    ext =  [ 5    6    7]
+        [3   4]           [ 8    9   10]
+                          [11   12   13]
+
+    returns [1   2    0    0    0]
+            [3   4    0    0    0]
+            [0   0    5    6    7]
+            [0   0    8    9   10]
+            [0   0   11   12   13]
+
+    """
+    return a.row_join(zeros(a.rows, ext.cols)).col_join(
+        zeros(ext.rows, a.cols).row_join(ext)
+    )
+
+
+def satisfiable(query):
+    solver = Solver()
+    solver.add(query)
+    return solver.check() == sat
