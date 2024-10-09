@@ -37,8 +37,8 @@ from utils import (
     get_symbol_assignment,
     get_z3_var,
     get_z3_var_map,
-    parse_DNF,
-    parse_conjunct,
+    parse_disjunction,
+    parse_conjunction,
     parse_constraint,
     parse_q_assignment,
     snd,
@@ -53,11 +53,10 @@ from utils import (
 ParityObjective = Boolean
 SPLinPSM = SPLinearFunction
 SPLinLexPSM = list[dict[int, SPLinPSM]]
-LinPSM = LinearFunction
-LinLexPSM = list[dict[int, LinPSM]]
+LinLexPSM = list[StateBasedLinearFunction]
 
 
-def pretty_lin_psm(vars: ProgramVariables, linear_psm: LinPSM):
+def pretty_lin_psm(vars: ProgramVariables, linear_psm: LinearFunction):
     a = Matrix(linear_psm[0])
     b = Matrix(linear_psm[1])
     return (a * Matrix(vars) + b)[0, 0]
@@ -112,6 +111,28 @@ class ParitySupermartingale:
         solver.add(query)
         return solver.check() == sat
 
+    def _extract_linear_function(
+        self, model: ModelRef, template: SPLinearFunction
+    ) -> LinearFunction:
+        return (
+            [
+                [z3_real_to_float(model[var]) for var in row]
+                for row in parse_matrix(fst(template))
+            ],
+            [
+                [z3_real_to_float(model[var]) for var in row]
+                for row in parse_matrix(snd(template))
+            ],
+        )
+
+    def _extract_state_based_linear_function(
+        self, model: ModelRef, states: list[int], template: SPStateBasedLinearFunction
+    ) -> StateBasedLinearFunction:
+        return {
+            state: self._extract_linear_function(model, template[state])
+            for state in states
+        }
+
     def _farkas_constraint(
         self, a_t: Matrix, b_t: Matrix, c: Matrix, d: Expr, z: Matrix
     ) -> list[BoolRef]:
@@ -156,10 +177,10 @@ class ParitySupermartingale:
         a_template, _ = template
         constraints: list[ExprRef] = []
         decrement_vars: list[tuple[Symbol, int]] = []
-        v_j_conjuncts = list(enumerate(parse_DNF(v_j[1])))
+        v_j_conjuncts = list(enumerate(parse_disjunction(v_j[1])))
 
         for guard in guards:
-            guard_conjuncts = parse_DNF(guard[1])
+            guard_conjuncts = parse_disjunction(guard[1])
 
             for guard_conjunct, v_j_conjunct in product(guard_conjuncts, v_j_conjuncts):
                 premise_constraints = list(
@@ -167,8 +188,8 @@ class ParitySupermartingale:
                     chain.from_iterable(
                         map(
                             parse_constraint,
-                            parse_conjunct(guard_conjunct)
-                            + parse_conjunct(v_j_conjunct[1]),
+                            parse_conjunction(guard_conjunct)
+                            + parse_conjunction(v_j_conjunct[1]),
                         )
                     )
                 )
@@ -244,13 +265,23 @@ class ParitySupermartingale:
             self._fresh_var_vec(f"{prefix}_b", m),
         )
 
+    def _get_state_based_linear_template(
+        self, prefix, states: list[int]
+    ) -> SPStateBasedLinearFunction:
+        return {
+            state: self._get_linear_template(
+                f"{prefix}_{state}", 1, len(self._system.vars)
+            )
+            for state in states
+        }
+
     def _is_ranked_guard(self, model: ModelRef, eps: tuple[Symbol, int]) -> bool:
         z3_symb = get_z3_var(eps[0])
         return model.eval(z3_symb > 0)
 
     def _alpha(
         self, i: int, guards: list[tuple[int, Guard]], s: list[ParityObjective], q: int
-    ) -> tuple[LinPSM, list[tuple[int, Guard]]]:
+    ) -> tuple[LinearFunction, list[tuple[int, Guard]]]:
         epsilons: list[tuple[Symbol, int]] = []
         constraints: list[ExprRef] = []
         template = self._get_linear_template(
@@ -288,20 +319,12 @@ class ParitySupermartingale:
         is_ranked_guard = partial(self._is_ranked_guard, model)
         ranked_guards_idx = list(map(lambda x: x[1], filter(is_ranked_guard, epsilons)))
         updated_guards = list(filter(lambda x: x[0] not in ranked_guards_idx, guards))
-        z3_alpha_i_a, z3_alpha_i_b = (
-            parse_matrix(template[0]),
-            parse_matrix(template[1]),
-        )
-        alpha_i: LinPSM = (
-            [[z3_real_to_float(model[var]) for var in row] for row in z3_alpha_i_a],
-            [[z3_real_to_float(model[var]) for var in row] for row in z3_alpha_i_b],
-        )
         if len(updated_guards) == len(guards):
             # No guards has been ranked, thus no solution synthesized
             raise RuntimeError(f"No solution for linear program computing alpha_{i}")
 
         # return alpha_i function and not ranked guards
-        return alpha_i, updated_guards
+        return self._extract_linear_function(model, template), updated_guards
 
     def _add_dpa_state_evaluation(
         self, dpa_state: int, guards: list[Guard]
@@ -313,7 +336,7 @@ class ParitySupermartingale:
                     map(
                         lambda g: And(
                             *(
-                                parse_conjunct(g)
+                                parse_conjunction(g)
                                 + [get_symbol_assignment(Symbol("q"), dpa_state)]
                             )
                         ),
@@ -389,13 +412,13 @@ class ParitySupermartingale:
         q_index = self._system.vars.index(Symbol("q"))
 
         def forall_guarded_commands(guarded_command: GuardedCommand):
-            g_a, g_b = DNF_to_linear_function(guarded_command[0], self._system.vars)
+            g_a, g_b = DNF_to_linear_function(guarded_command.guard, self._system.vars)
             return chain.from_iterable(
                 map(
                     lambda stoc_update: chain.from_iterable(
                         map(partial(forall_updates, g_a, g_b), stoc_update)
                     ),
-                    guarded_command[1],
+                    guarded_command.update,
                 )
             )
 
@@ -418,7 +441,7 @@ class ParitySupermartingale:
             update: SPLinearFunction,
             q_inv: tuple[int, SPLinearFunction],
         ):
-            # FIXME:
+            # NOTE:
             # Need to assume that the state variable q is directly assigned by a constant and not
             # by a linear function otherwise we can't compute I(x',q')
             u_a, u_b = update
@@ -463,7 +486,7 @@ class ParitySupermartingale:
         inv_a, inv_b = inv_template
         constraints = []
 
-        s_j_conjuncts = parse_DNF(s_j)
+        s_j_conjuncts = parse_disjunction(s_j)
 
         for s_j_conjunct in s_j_conjuncts:
             s_a, s_b = DNF_to_linear_function(s_j_conjunct, self._system.vars)
@@ -567,20 +590,12 @@ class ParitySupermartingale:
     ):
         # Create a functional template for the LinLexPSM
         lin_lex_psm_template: SPLinLexPSM = [
-            {
-                q_state: self._get_linear_template(
-                    f"V_{i}_q{q_state}", 1, len(self._system.vars)
-                )
-                for q_state in range(len(q_states))
-            }
+            self._get_state_based_linear_template(f"V{i}", q_states)
             for i in range(len(s))
         ]
 
         # Create a template for the linear invariant to synthesize
-        lin_invariant_template: SPStateBasedLinearFunction = {
-            q_state: self._get_linear_template("inv", 1, len(self._system.vars))
-            for q_state in q_states
-        }
+        lin_invariant_template = self._get_state_based_linear_template("inv", q_states)
 
         epsilons: dict[int, list[list[list[Symbol]]]] = {
             q_state: [] for q_state in q_states
@@ -640,33 +655,14 @@ class ParitySupermartingale:
 
         model = solver.model()
         lin_lex_psm: LinLexPSM = [
-            {
-                q_state: (
-                    [
-                        [z3_real_to_float(model[var]) for var in row]
-                        for row in parse_matrix(fst(lin_lex_psm_template[i][q_state]))
-                    ],
-                    [
-                        [z3_real_to_float(model[var]) for var in row]
-                        for row in parse_matrix(snd(lin_lex_psm_template[i][q_state]))
-                    ],
-                )
-                for q_state in q_states
-            }
+            self._extract_state_based_linear_function(
+                model, q_states, lin_lex_psm_template[i]
+            )
             for i in range(len(s))
         ]
 
-        lin_invariant: StateBasedLinearFunction = {
-            q_state: (
-                [
-                    [z3_real_to_float(model[var]) for var in row]
-                    for row in parse_matrix(fst(lin_invariant_template[q_state]))
-                ],
-                [
-                    [z3_real_to_float(model[var]) for var in row]
-                    for row in parse_matrix(snd(lin_invariant_template[q_state]))
-                ],
-            )
-            for q_state in q_states
-        }
+        lin_invariant = self._extract_state_based_linear_function(
+            model, q_states, lin_invariant_template
+        )
+
         return lin_lex_psm, lin_invariant

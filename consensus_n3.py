@@ -1,7 +1,7 @@
 import os
 import time
 
-from sympy import Add, And, Eq, GreaterThan, LessThan, Matrix, Symbol, symbols
+from sympy import Add, And, Eq, GreaterThan, LessThan, Matrix, Or, Symbol, symbols
 
 from parity_supermartingale import (
     ParitySupermartingale,
@@ -68,16 +68,8 @@ for K in KS:
         counter = symbols("counter")
         pc1, c1 = symbols("pc1 coin1")
         pc2, c2 = symbols("pc2 coin2")
+        pc3, c3 = symbols("pc3 coin3")
         q = symbols("q")
-
-        # Utility functions
-        pci_eq_k = lambda i, k: Eq(Add(Symbol(f"pc{i}"), -k), 0)
-        pci_lt_k = lambda i, k: LessThan(Add(Symbol(f"pc{i}"), -k), 0)
-        ci_eq_k = lambda i, k: Eq(Add(Symbol(f"coin{i}"), -k), 0)
-        counter_lt = lambda x: LessThan(Add(counter, -x), 0)
-        counter_gt = lambda x: GreaterThan(Add(counter, -x), 0)
-        counter_le = lambda x: LessThan(Add(counter, -x), 0)
-        counter_ge = lambda x: GreaterThan(Add(counter, -x), 0)
 
         def process(counter, pc, c):
             vars = (counter, pc, c)
@@ -305,6 +297,7 @@ for K in KS:
         # Process 1
         process1 = process(counter, pc1, c1)
         process2 = process(counter, pc2, c2)
+        process3 = process(counter, pc3, c3)
 
         # Automaton
         q_init = [(0.0,)]
@@ -314,24 +307,33 @@ for K in KS:
         q_body = [
             GuardedCommand(
                 [],
-                And(var_eq_val(pc1, 3), var_eq_val(pc2, 3)),
+                And(var_eq_val(pc1, 3), var_eq_val(pc2, 3), var_eq_val(pc3, 3)),
                 [[(1, (Matrix([[0]]), Matrix([[1]])))]],
             ),
             GuardedCommand(
                 [],
-                And(var_lt_val(pc1, 3), var_le_val(pc2, 3)),
+                And(var_lt_val(pc1, 3), var_le_val(pc2, 3), var_le_val(pc3, 3)),
                 [[(1, (Matrix([[0]]), Matrix([[0]])))]],
             ),
             GuardedCommand(
                 [],
-                And(var_le_val(pc1, 3), var_lt_val(pc2, 3)),
+                And(var_le_val(pc1, 3), var_lt_val(pc2, 3), var_le_val(pc3, 3)),
+                [[(1, (Matrix([[0]]), Matrix([[0]])))]],
+            ),
+            GuardedCommand(
+                [],
+                And(var_le_val(pc1, 3), var_le_val(pc2, 3), var_lt_val(pc3, 3)),
                 [[(1, (Matrix([[0]]), Matrix([[0]])))]],
             ),
         ]
 
         q_module = ReactiveModule(q_init, q_vars, q_body)
 
-        system = process1.parallel_composition(process2).parallel_composition(q_module)
+        system = (
+            process1.interleaving(process2)
+            .interleaving(process3)
+            .parallel_composition(q_module)
+        )
 
         psm = ParitySupermartingale(system)
 

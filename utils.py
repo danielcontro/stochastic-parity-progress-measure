@@ -1,13 +1,14 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 import enum
 from functools import reduce
 from itertools import chain
 import operator
-from typing import Self, TypeVar
+from typing import Optional, Self, TypeVar
 
 from sympy import (
     And,
     Eq,
+    Equality,
     GreaterThan,
     LessThan,
     Matrix,
@@ -20,11 +21,13 @@ from sympy import (
     Expr,
     Mul,
     Pow,
+    Unequality,
     linear_eq_to_matrix,
     zeros,
 )
+import sympy
 from sympy.core.relational import Relational
-from sympy.logic.boolalg import Boolean, BooleanFalse
+from sympy.logic.boolalg import Boolean, BooleanFalse, BooleanTrue
 from z3 import ArithRef, BoolRef, Real, Solver, Sqrt, sat
 import z3
 
@@ -110,15 +113,15 @@ def _sympy_to_z3_rec(e: Expr):
     )
 
 
-def parse_DNF(dnf: Boolean) -> list[Boolean]:
+def parse_disjunction(dnf: Boolean) -> list[Boolean]:
     if isinstance(dnf, Or):
-        assert all(isinstance(x, Boolean) for x in dnf.args)
+        print(dnf.args)
         return list(dnf.args)
 
     return [dnf]
 
 
-def parse_conjunct(conjunct: Boolean) -> list[Relational]:
+def parse_conjunction(conjunct: Boolean) -> list[Relational]:
     """
     Extrapolates a list of constraints from a conjunct
     """
@@ -130,26 +133,38 @@ def parse_conjunct(conjunct: Boolean) -> list[Relational]:
     return [conjunct]
 
 
-def _parse_constr(conjunct: Relational) -> BoolRef:
-    match conjunct.rel_op:
-        case "<":
-            return to_z3_expr(conjunct.lhs) < 0
-        case "<=":
-            return to_z3_expr(conjunct.lhs) <= 0
-        case ">":
-            return to_z3_expr(conjunct.lhs) > 0
-        case ">=":
-            return to_z3_expr(conjunct.lhs) >= 0
-        case "==":
-            return to_z3_expr(conjunct.lhs) == 0
+def _parse_constraint(constraint: Relational) -> BoolRef:
+    assert isinstance(constraint.lhs, Expr) and isinstance(constraint.rhs, Expr)
+    match type(constraint):
+        case sympy.StrictLessThan:
+            return to_z3_expr(constraint.lhs) < 0
+        case sympy.LessThan:
+            return to_z3_expr(constraint.lhs) <= 0
+        case sympy.StrictGreaterThan:
+            return to_z3_expr(constraint.lhs) > 0
+        case sympy.GreaterThan:
+            return to_z3_expr(constraint.lhs) >= 0
+        case sympy.Equality:
+            return to_z3_expr(constraint.lhs) == 0
         case _:
-            raise RuntimeError("Invalid ordering")
+            raise RuntimeError(f"Invalid ordering {type(constraint)} {constraint}")
 
 
 def to_z3_dnf(dnf: Boolean) -> list[BoolRef]:
-    conjs = parse_DNF(dnf)
-    constraints = list(map(parse_conjunct, conjs))
-    return z3.Or(list(map(lambda x: z3.And(list(map(_parse_constr, x))), constraints)))
+    if isinstance(dnf, BooleanFalse):
+        return [False]
+    if isinstance(dnf, BooleanTrue):
+        return [True]
+    conjunctions = parse_disjunction(dnf)
+    dnf_repr = list(
+        map(
+            lambda conjunction: list(
+                map(_parse_constraint, parse_conjunction(conjunction))
+            ),
+            conjunctions,
+        )
+    )
+    return z3.Or(*list(map(lambda x: z3.And(*x), dnf_repr)))
 
 
 def z3_real_to_float(z3_real: ArithRef) -> float:
@@ -168,21 +183,24 @@ def parse_constraint(constraint: Relational) -> list[Expr]:
     """
     if isinstance(constraint, BooleanFalse):
         return [1]
+    if isinstance(constraint, BooleanTrue):
+        return [0]
     assert isinstance(constraint.lhs, Expr)
-    ordering = constraint.rel_op
-    match ordering:
-        case "<":
+    match type(constraint):
+        case sympy.StrictLessThan:
             return [constraint.lhs]
-        case "<=":
+        case sympy.LessThan:
             return [constraint.lhs]
-        case ">=":
-            return [-(constraint.lhs)]
-        case ">":
-            return [-(constraint.lhs)]
-        case "==":
-            return [constraint.lhs, -(constraint.lhs)]
+        case sympy.StrictGreaterThan:
+            return [-constraint.lhs]
+        case sympy.GreaterThan:
+            return [-constraint.lhs]
+        case sympy.Equality:
+            return [constraint.lhs, -constraint.lhs]
+        case sympy.Unequality:
+            return [constraint.lhs, -constraint.lhs]
         case _:
-            raise RuntimeError("Invalid constraint kind")
+            raise RuntimeError("Invalid ordering")
 
 
 def parse_q_assignment(r: Relational):
@@ -211,14 +229,37 @@ def unzip(lst: list[tuple[T, U]]) -> tuple[list[T], list[U]]:
 
 
 def DNF_to_linear_function(dnf: Boolean, vars: tuple[Symbol, ...]) -> SPLinearFunction:
-    conjuncts = parse_DNF(dnf)
+    conjuncts = parse_disjunction(dnf)
     constraints = list(
         chain.from_iterable(
-            map(parse_constraint, chain.from_iterable(map(parse_conjunct, conjuncts)))
+            map(
+                parse_constraint, chain.from_iterable(map(parse_conjunction, conjuncts))
+            )
         )
     )
     a, neg_b = linear_eq_to_matrix(constraints, vars)
     return a, -neg_b
+
+
+def negate_constraint(constraint) -> Boolean | Relational:
+    # TODO:
+    if isinstance(constraint, BooleanFalse) or isinstance(constraint, BooleanTrue):
+        return ~constraint
+    match type(constraint):
+        case sympy.StrictLessThan:
+            return GreaterThan(constraint.lhs, 0)
+        case sympy.LessThan:
+            return StrictGreaterThan(constraint.lhs, 0)
+        case sympy.StrictGreaterThan:
+            return LessThan(constraint.lhs, 0)
+        case sympy.GreaterThan:
+            return StrictLessThan(constraint.lhs, 0)
+        case sympy.Equality:
+            return Unequality(constraint.lhs, 0)
+        case sympy.Unequality:
+            return Equality(constraint.lhs, 0)
+        case _:
+            raise RuntimeError("Invalid ordering")
 
 
 def extend_matrix(a: Matrix, ext: Matrix) -> Matrix:
@@ -248,3 +289,25 @@ def satisfiable(query):
     solver = Solver()
     solver.add(query)
     return solver.check() == sat
+
+
+def var_rel_val(var: Symbol, rel, val: float) -> Relational:
+    return rel(Add(var, -val), 0)
+
+
+var_eq_val = lambda var, val: var_rel_val(var, Equality, val)
+var_gt_val = lambda var, val: var_rel_val(var, StrictGreaterThan, val)
+var_ge_val = lambda var, val: var_rel_val(var, GreaterThan, val)
+var_lt_val = lambda var, val: var_rel_val(var, StrictLessThan, val)
+var_le_val = lambda var, val: var_rel_val(var, LessThan, val)
+var_ne_val = lambda var, val: var_rel_val(var, Unequality, val)
+
+
+def first(
+    predicate: Callable[[T], bool], iterable: Iterable[T], default: Optional[T] = None
+) -> Optional[T]:
+    return next(filter(predicate, iterable), default)
+
+
+def first_with_exception(predicate: Callable[[T], bool], iterable: Iterable[T]) -> T:
+    return next(filter(predicate, iterable))
