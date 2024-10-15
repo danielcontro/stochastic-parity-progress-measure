@@ -1,0 +1,281 @@
+mdp
+
+const int COL;
+
+const int ASLOTTIME = 1;
+
+const int DIFS = 3;
+
+const int VULN = 1;
+
+const int TRANS_TIME_MAX = 10;
+
+const int TRANS_TIME_MIN = 4;
+
+const int ACK_TO = 6;
+
+const int ACK = 4;
+
+const int SIFS = 1;
+
+const int TIME_MAX = max(ACK_TO,TRANS_TIME_MAX) + 1;
+
+const int MAX_BACKOFF = 0;
+
+formula busy = c1 > 0 | c2 > 0;
+
+formula free = c1 = 0 & c2 = 0;
+
+module mediumstation1station2
+    col : [0 .. COL + 1];
+    c1 : [0 .. 2];
+    c2 : [0 .. 2];
+    x1 : [0 .. TIME_MAX];
+    s1 : [1 .. 12];
+    slot1 : [0 .. 1];
+    backoff1 : [0 .. 15];
+    bc1 : [0 .. 1];
+    x2 : [0 .. TIME_MAX];
+    s2 : [1 .. 12];
+    slot2 : [0 .. 1];
+    backoff2 : [0 .. 15];
+    bc2 : [0 .. 1];
+    
+    [send1] (c1 = 0 & c2 = 0) & (s1 = 8 & (x1 = VULN | x1 = VULN - 1)) -> (c1' = 1) & (s1' = 9) & (x1' = 0);
+    [send1] (c1 = 0 & c2 = 0) & ((s1 = 10 & c1 = 0) & (x1 = SIFS | x1 = SIFS - 1 & (c1 = 0 & c2 = 0))) -> (c1' = 1) & (s1' = 10) & (x1' = 0);
+    [send2] (c2 = 0 & c1 = 0) & (s2 = 8 & (x2 = VULN | x2 = VULN - 1)) -> (c2' = 1) & (s2' = 9) & (x2' = 0);
+    [send2] (c2 = 0 & c1 = 0) & ((s2 = 10 & c2 = 0) & (x2 = SIFS | x2 = SIFS - 1 & (c2 = 0 & c1 = 0))) -> (c2' = 1) & (s2' = 10) & (x2' = 0);
+    [send1] (c1 = 0 & c2 > 0) & (s1 = 8 & (x1 = VULN | x1 = VULN - 1)) -> (c1' = 2) & (c2' = 2) & (col' = min(col + 1,COL)) & (s1' = 9) & (x1' = 0);
+    [send1] (c1 = 0 & c2 > 0) & ((s1 = 10 & c1 = 0) & (x1 = SIFS | x1 = SIFS - 1 & (c1 = 0 & c2 = 0))) -> (c1' = 2) & (c2' = 2) & (col' = min(col + 1,COL)) & (s1' = 10) & (x1' = 0);
+    [send2] (c2 = 0 & c1 > 0) & (s2 = 8 & (x2 = VULN | x2 = VULN - 1)) -> (c1' = 2) & (c2' = 2) & (col' = min(col + 1,COL)) & (s2' = 9) & (x2' = 0);
+    [send2] (c2 = 0 & c1 > 0) & ((s2 = 10 & c2 = 0) & (x2 = SIFS | x2 = SIFS - 1 & (c2 = 0 & c1 = 0))) -> (c1' = 2) & (c2' = 2) & (col' = min(col + 1,COL)) & (s2' = 10) & (x2' = 0);
+    [finish1] c1 > 0 & ((s1 = 9 & x1 >= TRANS_TIME_MIN) & c1 = 1) -> (c1' = 0) & (s1' = 10) & (x1' = 0);
+    [finish1] c1 > 0 & ((s1 = 9 & x1 >= TRANS_TIME_MIN) & c1 = 2) -> (c1' = 0) & (s1' = 11) & (x1' = 0);
+    [finish1] c1 > 0 & ((s1 = 10 & c1 = 1) & (x1 = ACK | x1 = ACK - 1)) -> (c1' = 0) & (s1' = 12) & (x1' = 0) & (bc1' = 0);
+    [finish2] c2 > 0 & ((s2 = 9 & x2 >= TRANS_TIME_MIN) & c2 = 1) -> (c2' = 0) & (s2' = 10) & (x2' = 0);
+    [finish2] c2 > 0 & ((s2 = 9 & x2 >= TRANS_TIME_MIN) & c2 = 2) -> (c2' = 0) & (s2' = 11) & (x2' = 0);
+    [finish2] c2 > 0 & ((s2 = 10 & c2 = 1) & (x2 = ACK | x2 = ACK - 1)) -> (c2' = 0) & (s2' = 12) & (x2' = 0) & (bc2' = 0);
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 1 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [] s1 = 1 & (x1 = DIFS | x1 = DIFS - 1) -> (s1' = 8) & (x1' = 0);
+    [] s1 = 1 & (c1 > 0 | c2 > 0) -> (s1' = 2) & (x1' = 0);
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (s1' = 2) & (s2' = 2);
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (s1' = 2) & (s2' = 6);
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & (s2 = 8 & x2 < VULN) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (s1' = 2) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 2 & (c1 > 0 | c2 > 0)) & s2 = 12 -> (s1' = 2) & (s2' = 12);
+    [] s1 = 2 & (c1 = 0 & c2 = 0) -> (s1' = 3);
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 3 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [] s1 = 3 & (c1 > 0 | c2 > 0) -> (s1' = 2) & (x1' = 0);
+    [] (s1 = 3 & (x1 = DIFS | x1 = DIFS - 1)) & bc1 = 0 -> (s1' = 4) & (x1' = 0) & (slot1' = 0) & (bc1' = min(bc1 + 1,MAX_BACKOFF));
+    [] s1 = 4 -> 1 / 16:(s1' = 5) & (backoff1' = 0) + 1 / 16:(s1' = 5) & (backoff1' = 1) + 1 / 16:(s1' = 5) & (backoff1' = 2) + 1 / 16:(s1' = 5) & (backoff1' = 3) + 1 / 16:(s1' = 5) & (backoff1' = 4) + 1 / 16:(s1' = 5) & (backoff1' = 5) + 1 / 16:(s1' = 5) & (backoff1' = 6) + 1 / 16:(s1' = 5) & (backoff1' = 7) + 1 / 16:(s1' = 5) & (backoff1' = 8) + 1 / 16:(s1' = 5) & (backoff1' = 9) + 1 / 16:(s1' = 5) & (backoff1' = 10) + 1 / 16:(s1' = 5) & (backoff1' = 11) + 1 / 16:(s1' = 5) & (backoff1' = 12) + 1 / 16:(s1' = 5) & (backoff1' = 13) + 1 / 16:(s1' = 5) & (backoff1' = 14) + 1 / 16:(s1' = 5) & (backoff1' = 15);
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 5 & x1 < ASLOTTIME) & (c1 = 0 & c2 = 0)) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [] (s1 = 5 & x1 = ASLOTTIME) & backoff1 > 0 -> (s1' = 5) & (x1' = 0) & (backoff1' = backoff1 - 1);
+    [] ((s1 = 5 & x1 = ASLOTTIME) & backoff1 = 0) & slot1 > 0 -> (s1' = 5) & (x1' = 0) & (backoff1' = 15) & (slot1' = slot1 - 1);
+    [] ((s1 = 5 & x1 = ASLOTTIME) & backoff1 = 0) & slot1 = 0 -> (s1' = 8) & (x1' = 0);
+    [] s1 = 5 & (c1 > 0 | c2 > 0) -> (s1' = 6) & (x1' = 0);
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (s1' = 6) & (s2' = 2);
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (s1' = 6) & (s2' = 6);
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & (s2 = 8 & x2 < VULN) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (s1' = 6) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 6 & (c1 > 0 | c2 > 0)) & s2 = 12 -> (s1' = 6) & (s2' = 12);
+    [] s1 = 6 & (c1 = 0 & c2 = 0) -> (s1' = 7);
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 7 & x1 < DIFS) & (c1 = 0 & c2 = 0)) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [] s1 = 7 & (x1 = DIFS | x1 = DIFS - 1) -> (s1' = 5) & (x1' = 0);
+    [] s1 = 7 & (c1 > 0 | c2 > 0) -> (s1' = 6) & (x1' = 0);
+    [time] (s1 = 8 & x1 < VULN) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] (s1 = 8 & x1 < VULN) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] (s1 = 8 & x1 < VULN) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 8 & x1 < VULN) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (s1 = 9 & x1 < TRANS_TIME_MAX) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [] ((s1 = 10 & c1 = 0) & x1 = 0) & (c1 > 0 | c2 > 0) -> (s1' = 2);
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] (((s1 = 10 & c1 = 0) & x1 = 0) & (c1 = 0 & c2 = 0)) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 10 & c1 = 1) & x1 < ACK) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [] (s1 = 11 & x1 = 0) & (c1 > 0 | c2 > 0) -> (s1' = 2);
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 = 0) & (c1 = 0 & c2 = 0)) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 2);
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 6);
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & (s2 = 8 & x2 < VULN) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (x1' = min(x1 + 1,TIME_MAX)) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] ((s1 = 11 & x1 > 0) & x1 < ACK_TO) & s2 = 12 -> (x1' = min(x1 + 1,TIME_MAX)) & (s2' = 12);
+    [] s1 = 11 & x1 = ACK_TO -> (s1' = 3) & (x1' = 0);
+    [time] s1 = 12 & ((s2 = 1 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & (s2 = 2 & (c2 > 0 | c1 > 0)) -> (s1' = 12) & (s2' = 2);
+    [time] s1 = 12 & ((s2 = 3 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & ((s2 = 5 & x2 < ASLOTTIME) & (c2 = 0 & c1 = 0)) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & (s2 = 6 & (c2 > 0 | c1 > 0)) -> (s1' = 12) & (s2' = 6);
+    [time] s1 = 12 & ((s2 = 7 & x2 < DIFS) & (c2 = 0 & c1 = 0)) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & (s2 = 8 & x2 < VULN) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & (s2 = 9 & x2 < TRANS_TIME_MAX) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & (((s2 = 10 & c2 = 0) & x2 = 0) & (c2 = 0 & c1 = 0)) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & ((s2 = 10 & c2 = 1) & x2 < ACK) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & ((s2 = 11 & x2 = 0) & (c2 = 0 & c1 = 0)) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & ((s2 = 11 & x2 > 0) & x2 < ACK_TO) -> (s1' = 12) & (x2' = min(x2 + 1,TIME_MAX));
+    [time] s1 = 12 & s2 = 12 -> (s1' = 12) & (s2' = 12);
+    [] s2 = 1 & (x2 = DIFS | x2 = DIFS - 1) -> (s2' = 8) & (x2' = 0);
+    [] s2 = 1 & (c2 > 0 | c1 > 0) -> (s2' = 2) & (x2' = 0);
+    [] s2 = 2 & (c2 = 0 & c1 = 0) -> (s2' = 3);
+    [] s2 = 3 & (c2 > 0 | c1 > 0) -> (s2' = 2) & (x2' = 0);
+    [] (s2 = 3 & (x2 = DIFS | x2 = DIFS - 1)) & bc2 = 0 -> (s2' = 4) & (x2' = 0) & (slot2' = 0) & (bc2' = min(bc2 + 1,MAX_BACKOFF));
+    [] s2 = 4 -> 1 / 16:(s2' = 5) & (backoff2' = 0) + 1 / 16:(s2' = 5) & (backoff2' = 1) + 1 / 16:(s2' = 5) & (backoff2' = 2) + 1 / 16:(s2' = 5) & (backoff2' = 3) + 1 / 16:(s2' = 5) & (backoff2' = 4) + 1 / 16:(s2' = 5) & (backoff2' = 5) + 1 / 16:(s2' = 5) & (backoff2' = 6) + 1 / 16:(s2' = 5) & (backoff2' = 7) + 1 / 16:(s2' = 5) & (backoff2' = 8) + 1 / 16:(s2' = 5) & (backoff2' = 9) + 1 / 16:(s2' = 5) & (backoff2' = 10) + 1 / 16:(s2' = 5) & (backoff2' = 11) + 1 / 16:(s2' = 5) & (backoff2' = 12) + 1 / 16:(s2' = 5) & (backoff2' = 13) + 1 / 16:(s2' = 5) & (backoff2' = 14) + 1 / 16:(s2' = 5) & (backoff2' = 15);
+    [] (s2 = 5 & x2 = ASLOTTIME) & backoff2 > 0 -> (s2' = 5) & (x2' = 0) & (backoff2' = backoff2 - 1);
+    [] ((s2 = 5 & x2 = ASLOTTIME) & backoff2 = 0) & slot2 > 0 -> (s2' = 5) & (x2' = 0) & (backoff2' = 15) & (slot2' = slot2 - 1);
+    [] ((s2 = 5 & x2 = ASLOTTIME) & backoff2 = 0) & slot2 = 0 -> (s2' = 8) & (x2' = 0);
+    [] s2 = 5 & (c2 > 0 | c1 > 0) -> (s2' = 6) & (x2' = 0);
+    [] s2 = 6 & (c2 = 0 & c1 = 0) -> (s2' = 7);
+    [] s2 = 7 & (x2 = DIFS | x2 = DIFS - 1) -> (s2' = 5) & (x2' = 0);
+    [] s2 = 7 & (c2 > 0 | c1 > 0) -> (s2' = 6) & (x2' = 0);
+    [] ((s2 = 10 & c2 = 0) & x2 = 0) & (c2 > 0 | c1 > 0) -> (s2' = 2);
+    [] (s2 = 11 & x2 = 0) & (c2 > 0 | c1 > 0) -> (s2' = 2);
+    [] s2 = 11 & x2 = ACK_TO -> (s2' = 3) & (x2' = 0);
+endmodule
+
+rewards "collisions"
+    [send1] c1 = 0 & c2 > 0 : 1;
+    [send2] c2 = 0 & c1 > 0 : 1;
+endrewards
+
+rewards "time"
+    [time] true : 50;
+endrewards
+
+rewards "cost"
+    [time] c1 = 0 & c2 = 0 : 50;
+    [time] c1 + c2 = 1 : 50 * 10;
+    [time] c1 = 1 & c2 = 1 : 50 * 20;
+    [time] ((c1 = 0 & c2 = 2) & bc1 = 0) & bc2 = 0 : 50 * 10;
+    [time] ((c1 = 2 & c2 = 0) & bc1 = 0) & bc2 = 0 : 50 * 10;
+    [time] ((c1 = 2 & c2 = 2) & bc1 = 0) & bc2 = 0 : 50 * 20;
+    [time] (c1 = 0 & c2 = 2) & (bc1 > 0 | bc2 > 0) : 50 * 1000;
+    [time] (c1 = 2 & c2 = 0) & (bc1 > 0 | bc2 > 0) : 50 * 1000;
+    [time] (c1 = 2 & c2 = 2) & (bc1 > 0 | bc2 > 0) : 50 * 2000;
+endrewards
+

@@ -1,0 +1,48 @@
+mdp
+
+const int delay;
+
+const double fast = 0.5;
+
+const double slow = 1 - fast;
+
+const int kx = 167;
+
+module abstract_firewire
+    x : [0 .. kx + 1];
+    s : [0 .. 9];
+    
+    [time] s = 0 & x < delay -> (x' = min(x + 1,kx + 1));
+    [round] s = 0 -> fast:(s' = 1) + slow:(s' = 4);
+    [round] s = 0 -> fast:(s' = 2) + slow:(s' = 3);
+    [time] s = 1 & x < delay -> (x' = min(x + 1,kx + 1));
+    [] s = 1 -> fast:(s' = 5) & (x' = 0) + slow:(s' = 6) & (x' = 0);
+    [time] s = 2 & x < delay -> (x' = min(x + 1,kx + 1));
+    [] s = 2 -> fast:(s' = 5) & (x' = 0) + slow:(s' = 7) & (x' = 0);
+    [time] s = 3 & x < delay -> (x' = min(x + 1,kx + 1));
+    [] s = 3 -> fast:(s' = 6) & (x' = 0) + slow:(s' = 8) & (x' = 0);
+    [time] s = 4 & x < delay -> (x' = min(x + 1,kx + 1));
+    [] s = 4 -> fast:(s' = 7) & (x' = 0) + slow:(s' = 8) & (x' = 0);
+    [time] s = 5 & x < 85 -> (x' = min(x + 1,kx + 1));
+    [] s = 5 & x >= 76 -> (s' = 0) & (x' = 0);
+    [] s = 5 & x >= 76 - delay -> (s' = 9) & (x' = 0);
+    [time] s = 6 & x < 167 -> (x' = min(x + 1,kx + 1));
+    [] s = 6 & x >= 159 - delay -> (s' = 9) & (x' = 0);
+    [time] s = 7 & x < 167 -> (x' = min(x + 1,kx + 1));
+    [] s = 7 & x >= 159 - delay -> (s' = 9) & (x' = 0);
+    [time] s = 8 & x < 167 -> (x' = min(x + 1,kx + 1));
+    [] s = 8 & x >= 159 -> (s' = 0) & (x' = 0);
+    [] s = 8 & x >= 159 - delay -> (s' = 9) & (x' = 0);
+    [] s = 9 -> (s' = s);
+endmodule
+
+label "done" = s = 9;
+
+rewards "time"
+    [time] true : 1;
+endrewards
+
+rewards "rounds"
+    [round] true : 1;
+endrewards
+
