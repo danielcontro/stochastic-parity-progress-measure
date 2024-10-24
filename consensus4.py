@@ -85,9 +85,9 @@ P>=1 [ F "finished" ]
 KS = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
 for K in KS:
     # Experiments setup
-    RUNS = 20
+    RUNS = 5
 
-    output_dir = f"./results/consensus_n2_k{K}"
+    output_dir = f"./results/consensus4_k{K}"
     os.makedirs(output_dir, exist_ok=True)
     elapsed_times = []
 
@@ -110,10 +110,14 @@ for K in KS:
         pc4, c4 = symbols("pc4 coin4")
         q = symbols("q")
 
-        def process(pc: Symbol, coin: Symbol, pc_idx: int, coin_idx: int):
-            not_vars = [i for i in range(9) if i != pc_idx and i != coin_idx]
+        vars = (counter, pc1, c1, pc2, c2, pc3, c3, pc4, c4, q)
+
+        def process(pc: Symbol, coin: Symbol):
+            pc_idx = vars.index(pc)
+            coin_idx = vars.index(coin)
+            q_idx = vars.index(q)
             vars_idx = [pc_idx, coin_idx]
-            exclude_idx = [pc_idx, coin_idx, 9]
+            exclude_idx = vars_idx + [q_idx]
             return [
                 GuardedCommand(
                     [],
@@ -124,27 +128,33 @@ for K in KS:
                                 0.5,
                                 (
                                     Matrix(
-                                        10,
-                                        10,
+                                        len(vars),
+                                        len(vars),
                                         lambda i, j: 1
                                         if i == j and i not in exclude_idx
                                         else 0,
                                     ),
-                                    Matrix(10, 1, lambda i, j: 1 if i == pc_idx else 0),
+                                    Matrix(
+                                        len(vars),
+                                        1,
+                                        lambda i, _: 1 if i == pc_idx else 0,
+                                    ),
                                 ),
                             ),
                             (
                                 0.5,
                                 (
                                     Matrix(
-                                        10,
-                                        10,
+                                        len(vars),
+                                        len(vars),
                                         lambda i, j: 1
                                         if i == j and i not in exclude_idx
                                         else 0,
                                     ),
                                     Matrix(
-                                        10, 1, lambda i, _: 1 if i in vars_idx else 0
+                                        len(vars),
+                                        1,
+                                        lambda i, _: 1 if i in vars_idx else 0,
                                     ),
                                 ),
                             ),
@@ -160,14 +170,14 @@ for K in KS:
                                 1,
                                 (
                                     Matrix(
-                                        10,
-                                        10,
+                                        len(vars),
+                                        len(vars),
                                         lambda i, j: 1
                                         if i == j and i not in exclude_idx
                                         else 0,
                                     ),
                                     Matrix(
-                                        10,
+                                        len(vars),
                                         1,
                                         lambda i, _: -1
                                         if i == 0
@@ -191,14 +201,14 @@ for K in KS:
                                 1,
                                 (
                                     Matrix(
-                                        10,
-                                        10,
+                                        len(vars),
+                                        len(vars),
                                         lambda i, j: 1
                                         if i == j and i not in exclude_idx
                                         else 0,
                                     ),
                                     Matrix(
-                                        10,
+                                        len(vars),
                                         1,
                                         lambda i, _: 1
                                         if i == 0
@@ -218,13 +228,17 @@ for K in KS:
                                 1,
                                 (
                                     Matrix(
-                                        10,
-                                        10,
+                                        len(vars),
+                                        len(vars),
                                         lambda i, j: 1
                                         if i == j and i not in exclude_idx
                                         else 0,
                                     ),
-                                    Matrix(10, 1, lambda i, _: 3 if i == pc_idx else 0),
+                                    Matrix(
+                                        len(vars),
+                                        1,
+                                        lambda i, _: 3 if i == pc_idx else 0,
+                                    ),
                                 ),
                             )
                         ]
@@ -239,14 +253,14 @@ for K in KS:
                                 1,
                                 (
                                     Matrix(
-                                        10,
-                                        10,
+                                        len(vars),
+                                        len(vars),
                                         lambda i, j: 1
                                         if i == j and i not in exclude_idx
                                         else 0,
                                     ),
                                     Matrix(
-                                        10,
+                                        len(vars),
                                         1,
                                         lambda i, _: 3
                                         if i == pc_idx
@@ -270,13 +284,13 @@ for K in KS:
                                 1,
                                 (
                                     Matrix(
-                                        10,
-                                        10,
+                                        len(vars),
+                                        len(vars),
                                         lambda i, j: 1
-                                        if i == j and i not in [pc_idx, 9]
+                                        if i == j and i not in [pc_idx, q_idx]
                                         else 0,
                                     ),
-                                    zeros(10, 1),
+                                    zeros(len(vars), 1),
                                 ),
                             )
                         ]
@@ -298,18 +312,18 @@ for K in KS:
                         1,
                         (
                             Matrix(
-                                10,
-                                10,
+                                len(vars),
+                                len(vars),
                                 lambda i, j: 1
                                 if i == j and i in [0, 2, 4, 6, 8]
                                 else 0,
                             ),
                             Matrix(
-                                10,
+                                len(vars),
                                 1,
                                 lambda i, _: 1
-                                if i == 9
-                                else (3 if i in [2, 4, 6, 8] else 0),
+                                if i == vars.index(q)
+                                else (3 if i in [1, 3, 5, 7] else 0),
                             ),
                         ),
                     )
@@ -319,11 +333,11 @@ for K in KS:
 
         system = ReactiveModule(
             [(COUNTER_INIT, 0, 0, 0, 0, 0, 0, 0, 0, 0)],
-            (counter, pc1, c1, pc2, c2, pc3, c3, pc4, c4, q),
-            process(pc1, c1, 1, 2)
-            + process(pc2, c2, 3, 4)
-            + process(pc3, c3, 5, 6)
-            + process(pc4, c4, 7, 8)
+            vars,
+            process(pc1, c1)
+            + process(pc2, c2)
+            + process(pc3, c3)
+            + process(pc4, c4)
             + [gc7],
         )
 

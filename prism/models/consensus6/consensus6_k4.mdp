@@ -1,0 +1,111 @@
+mdp
+
+label "finished" = pc1=3&pc2=3&pc3=3&pc4=3&pc5=3&pc6=3;
+label "all_coins_equal_0" = coin1=0&coin2=0&coin3=0&coin4=0&coin5=0&coin6=0;
+label "all_coins_equal_1" = coin1=1&coin2=1&coin3=1&coin4=1&coin5=1&coin6=1;
+label "agree" = coin1=coin2&coin2=coin3&coin3=coin4&coin4=coin5&coin5=coin6;
+
+const int N = 6;
+const int K;
+const int range = 2*(4+1)*6;
+const int counter_init = (4+1)*6;
+const int left = 6;
+const int right = 2*(4+1)*6-6;
+
+global counter : [0..60] init 30;
+
+module process1
+
+	pc1 : [0..3];
+	coin1 : [0..1];
+
+	[] (pc1=0) -> 0.5 : (coin1'=0) & (pc1'=1) + 0.5 : (coin1'=1) & (pc1'=1);
+	[] (pc1=1)&(coin1=0)&(counter>0) -> (counter'=counter-1) & (pc1'=2) & (coin1'=0);
+	[] (pc1=1)&(coin1=1)&(counter<60) -> (counter'=counter+1) & (pc1'=2) & (coin1'=0);
+	[] (pc1=2)&(counter<=6) -> (pc1'=3) & (coin1'=0);
+	[] (pc1=2)&(counter>=54) -> (pc1'=3) & (coin1'=1);
+	[] (pc1=2)&(counter>6)&(counter<54) -> (pc1'=0);
+	[done] (pc1=3) -> (pc1'=3);
+
+endmodule
+
+module process2
+
+	pc2 : [0..3];
+	coin2 : [0..1];
+
+	[] (pc2=0) -> 0.5 : (coin2'=0) & (pc2'=1) + 0.5 : (coin2'=1) & (pc2'=1);
+	[] (pc2=1)&(coin2=0)&(counter>0) -> (counter'=counter-1) & (pc2'=2) & (coin2'=0);
+	[] (pc2=1)&(coin2=1)&(counter<60) -> (counter'=counter+1) & (pc2'=2) & (coin2'=0);
+	[] (pc2=2)&(counter<=6) -> (pc2'=3) & (coin2'=0);
+	[] (pc2=2)&(counter>=54) -> (pc2'=3) & (coin2'=1);
+	[] (pc2=2)&(counter>6)&(counter<54) -> (pc2'=0);
+	[done] (pc2=3) -> (pc2'=3);
+
+endmodule
+
+module process3
+
+	pc3 : [0..3];
+	coin3 : [0..1];
+
+	[] (pc3=0) -> 0.5 : (coin3'=0) & (pc3'=1) + 0.5 : (coin3'=1) & (pc3'=1);
+	[] (pc3=1)&(coin3=0)&(counter>0) -> (counter'=counter-1) & (pc3'=2) & (coin3'=0);
+	[] (pc3=1)&(coin3=1)&(counter<60) -> (counter'=counter+1) & (pc3'=2) & (coin3'=0);
+	[] (pc3=2)&(counter<=6) -> (pc3'=3) & (coin3'=0);
+	[] (pc3=2)&(counter>=54) -> (pc3'=3) & (coin3'=1);
+	[] (pc3=2)&(counter>6)&(counter<54) -> (pc3'=0);
+	[done] (pc3=3) -> (pc3'=3);
+
+endmodule
+
+module process4
+
+	pc4 : [0..3];
+	coin4 : [0..1];
+
+	[] (pc4=0) -> 0.5 : (coin4'=0) & (pc4'=1) + 0.5 : (coin4'=1) & (pc4'=1);
+	[] (pc4=1)&(coin4=0)&(counter>0) -> (counter'=counter-1) & (pc4'=2) & (coin4'=0);
+	[] (pc4=1)&(coin4=1)&(counter<60) -> (counter'=counter+1) & (pc4'=2) & (coin4'=0);
+	[] (pc4=2)&(counter<=6) -> (pc4'=3) & (coin4'=0);
+	[] (pc4=2)&(counter>=54) -> (pc4'=3) & (coin4'=1);
+	[] (pc4=2)&(counter>6)&(counter<54) -> (pc4'=0);
+	[done] (pc4=3) -> (pc4'=3);
+
+endmodule
+
+module process5
+
+	pc5 : [0..3];
+	coin5 : [0..1];
+
+	[] (pc5=0) -> 0.5 : (coin5'=0) & (pc5'=1) + 0.5 : (coin5'=1) & (pc5'=1);
+	[] (pc5=1)&(coin5=0)&(counter>0) -> (counter'=counter-1) & (pc5'=2) & (coin5'=0);
+	[] (pc5=1)&(coin5=1)&(counter<60) -> (counter'=counter+1) & (pc5'=2) & (coin5'=0);
+	[] (pc5=2)&(counter<=6) -> (pc5'=3) & (coin5'=0);
+	[] (pc5=2)&(counter>=54) -> (pc5'=3) & (coin5'=1);
+	[] (pc5=2)&(counter>6)&(counter<54) -> (pc5'=0);
+	[done] (pc5=3) -> (pc5'=3);
+
+endmodule
+
+module process6
+
+	pc6 : [0..3];
+	coin6 : [0..1];
+
+	[] (pc6=0) -> 0.5 : (coin6'=0) & (pc6'=1) + 0.5 : (coin6'=1) & (pc6'=1);
+	[] (pc6=1)&(coin6=0)&(counter>0) -> (counter'=counter-1) & (pc6'=2) & (coin6'=0);
+	[] (pc6=1)&(coin6=1)&(counter<60) -> (counter'=counter+1) & (pc6'=2) & (coin6'=0);
+	[] (pc6=2)&(counter<=6) -> (pc6'=3) & (coin6'=0);
+	[] (pc6=2)&(counter>=54) -> (pc6'=3) & (coin6'=1);
+	[] (pc6=2)&(counter>6)&(counter<54) -> (pc6'=0);
+	[done] (pc6=3) -> (pc6'=3);
+
+endmodule
+
+rewards "steps" 
+
+	true : 1;
+
+endrewards

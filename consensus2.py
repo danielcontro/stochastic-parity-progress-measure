@@ -2,7 +2,7 @@ import itertools
 import os
 import time
 
-from sympy import Add, And, Eq, GreaterThan, LessThan, Matrix, Symbol, symbols
+from sympy import Add, And, Eq, GreaterThan, LessThan, Matrix, Symbol, symbols, zeros
 
 from parity_supermartingale import (
     ParitySupermartingale,
@@ -66,12 +66,12 @@ endmodule
 P>=1 [ F "finished" ]
 """
 
-KS = [256]
+KS = [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768]
 for K in KS:
     # Experiments setup
-    RUNS = 20
+    RUNS = 5
 
-    output_dir = f"./results/consensus_n2_k{K}"
+    output_dir = f"./results/consensus2_k{K}/verification"
     os.makedirs(output_dir, exist_ok=True)
     elapsed_times = []
 
@@ -92,500 +92,226 @@ for K in KS:
         pc2, c2 = symbols("pc2 coin2")
         q = symbols("q")
 
-        # Utility functions
-        g1 = [var_eq_val(pc1, 0)]
-        g2 = [var_eq_val(pc1, 1), var_eq_val(c1, 0), var_gt_val(counter, 0)]
-        g3 = [var_eq_val(pc1, 1), var_eq_val(c1, 1), var_lt_val(counter, RANGE)]
-        g4 = [var_eq_val(pc1, 2), var_le_val(counter, LEFT)]
-        g5 = [var_eq_val(pc1, 2), var_ge_val(counter, RIGHT)]
-        g6 = [var_eq_val(pc1, 2), var_gt_val(counter, LEFT), var_lt_val(counter, RIGHT)]
-        g7 = [var_eq_val(pc1, 3), var_eq_val(pc2, 3)]
-        g8 = [var_eq_val(pc2, 0)]
-        g9 = [var_eq_val(pc2, 1), var_eq_val(c2, 0), var_gt_val(counter, 0)]
-        g10 = [var_eq_val(pc2, 1), var_eq_val(c2, 1), var_lt_val(counter, RANGE)]
-        g11 = [var_eq_val(pc2, 2), var_le_val(counter, LEFT)]
-        g12 = [var_eq_val(pc2, 2), var_ge_val(counter, RIGHT)]
-        g13 = [
-            var_eq_val(pc2, 2),
-            var_gt_val(counter, LEFT),
-            var_lt_val(counter, RIGHT),
-        ]
+        vars = (counter, pc1, c1, pc2, c2, q)
 
-        f1: StochasticUpdate = [
-            (
-                0.5,
-                (
-                    Matrix(
+        def process(pc: Symbol, coin: Symbol):
+            pc_idx = vars.index(pc)
+            coin_idx = vars.index(coin)
+            q_idx = vars.index(q)
+            vars_idx = [pc_idx, coin_idx]
+            exclude_idx = vars_idx + [q_idx]
+            return [
+                GuardedCommand(
+                    [],
+                    var_eq_val(pc, 0),
+                    [
                         [
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 1, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
+                            (
+                                0.5,
+                                (
+                                    Matrix(
+                                        len(vars),
+                                        len(vars),
+                                        lambda i, j: 1
+                                        if i == j and i not in exclude_idx
+                                        else 0,
+                                    ),
+                                    Matrix(
+                                        len(vars),
+                                        1,
+                                        lambda i, _: 1 if i == pc_idx else 0,
+                                    ),
+                                ),
+                            ),
+                            (
+                                0.5,
+                                (
+                                    Matrix(
+                                        len(vars),
+                                        len(vars),
+                                        lambda i, j: 1
+                                        if i == j and i not in exclude_idx
+                                        else 0,
+                                    ),
+                                    Matrix(
+                                        len(vars),
+                                        1,
+                                        lambda i, _: 1 if i in vars_idx else 0,
+                                    ),
+                                ),
+                            ),
                         ]
-                    ),
-                    Matrix(
-                        [
-                            [1],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                        ]
-                    ),
+                    ],
                 ),
+                GuardedCommand(
+                    [],
+                    And(var_eq_val(pc, 1), var_eq_val(coin, 0), var_gt_val(counter, 0)),
+                    [
+                        [
+                            (
+                                1,
+                                (
+                                    Matrix(
+                                        len(vars),
+                                        len(vars),
+                                        lambda i, j: 1
+                                        if i == j and i not in exclude_idx
+                                        else 0,
+                                    ),
+                                    Matrix(
+                                        len(vars),
+                                        1,
+                                        lambda i, _: -1
+                                        if i == 0
+                                        else (2 if i == pc_idx else 0),
+                                    ),
+                                ),
+                            )
+                        ]
+                    ],
+                ),
+                GuardedCommand(
+                    [],
+                    And(
+                        var_eq_val(pc, 1),
+                        var_eq_val(coin, 1),
+                        var_lt_val(counter, RANGE),
+                    ),
+                    [
+                        [
+                            (
+                                1,
+                                (
+                                    Matrix(
+                                        len(vars),
+                                        len(vars),
+                                        lambda i, j: 1
+                                        if i == j and i not in exclude_idx
+                                        else 0,
+                                    ),
+                                    Matrix(
+                                        len(vars),
+                                        1,
+                                        lambda i, _: 1
+                                        if i == 0
+                                        else (2 if i == pc_idx else 0),
+                                    ),
+                                ),
+                            )
+                        ]
+                    ],
+                ),
+                GuardedCommand(
+                    [],
+                    And(var_eq_val(pc, 2), var_le_val(counter, LEFT)),
+                    [
+                        [
+                            (
+                                1,
+                                (
+                                    Matrix(
+                                        len(vars),
+                                        len(vars),
+                                        lambda i, j: 1
+                                        if i == j and i not in exclude_idx
+                                        else 0,
+                                    ),
+                                    Matrix(
+                                        len(vars),
+                                        1,
+                                        lambda i, _: 3 if i == pc_idx else 0,
+                                    ),
+                                ),
+                            )
+                        ]
+                    ],
+                ),
+                GuardedCommand(
+                    [],
+                    And(var_eq_val(pc, 2), var_ge_val(counter, RIGHT)),
+                    [
+                        [
+                            (
+                                1,
+                                (
+                                    Matrix(
+                                        len(vars),
+                                        len(vars),
+                                        lambda i, j: 1
+                                        if i == j and i not in exclude_idx
+                                        else 0,
+                                    ),
+                                    Matrix(
+                                        len(vars),
+                                        1,
+                                        lambda i, _: 3
+                                        if i == pc_idx
+                                        else (1 if i == coin_idx else 0),
+                                    ),
+                                ),
+                            )
+                        ]
+                    ],
+                ),
+                GuardedCommand(
+                    [],
+                    And(
+                        var_eq_val(pc, 2),
+                        var_gt_val(counter, LEFT),
+                        var_lt_val(counter, RIGHT),
+                    ),
+                    [
+                        [
+                            (
+                                1,
+                                (
+                                    Matrix(
+                                        len(vars),
+                                        len(vars),
+                                        lambda i, j: 1
+                                        if i == j and i not in [pc_idx, q_idx]
+                                        else 0,
+                                    ),
+                                    zeros(len(vars), 1),
+                                ),
+                            )
+                        ]
+                    ],
+                ),
+            ]
+
+        gc7 = GuardedCommand(
+            [],
+            And(
+                var_eq_val(pc1, 3),
+                var_eq_val(pc2, 3),
             ),
-            (
-                0.5,
-                (
-                    Matrix(
-                        [
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 1, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [1],
-                            [1],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f2: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 1, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [2],
-                            [0],
-                            [0],
-                            [0],
-                            [-1],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f3: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 1, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [2],
-                            [0],
-                            [0],
-                            [0],
-                            [1],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f4: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 1, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [3],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f5: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 1, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [3],
-                            [1],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f6: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 1, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f7: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 1, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [3],
-                            [0],
-                            [3],
-                            [0],
-                            [0],
-                            [1],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f8: StochasticUpdate = [
-            (
-                0.5,
-                (
-                    Matrix(
-                        [
-                            [1, 0, 0, 0, 0, 0],
-                            [0, 1, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [0],
-                            [0],
-                            [1],
-                            [0],
-                            [0],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-            (
-                0.5,
-                (
-                    Matrix(
-                        [
-                            [1, 0, 0, 0, 0, 0],
-                            [0, 1, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [0],
-                            [0],
-                            [1],
-                            [1],
-                            [0],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f9: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [1, 0, 0, 0, 0, 0],
-                            [0, 1, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [0],
-                            [0],
-                            [2],
-                            [0],
-                            [-1],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f10: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [1, 0, 0, 0, 0, 0],
-                            [0, 1, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [0],
-                            [0],
-                            [2],
-                            [0],
-                            [1],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f11: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [1, 0, 0, 0, 0, 0],
-                            [0, 1, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [0],
-                            [0],
-                            [3],
-                            [0],
-                            [0],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f12: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [1, 0, 0, 0, 0, 0],
-                            [0, 1, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [0],
-                            [0],
-                            [3],
-                            [1],
-                            [0],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        f13: StochasticUpdate = [
-            (
-                1,
-                (
-                    Matrix(
-                        [
-                            [1, 0, 0, 0, 0, 0],
-                            [0, 1, 0, 0, 0, 0],
-                            [0, 0, 0, 0, 0, 0],
-                            [0, 0, 0, 1, 0, 0],
-                            [0, 0, 0, 0, 1, 0],
-                            [0, 0, 0, 0, 0, 0],
-                        ]
-                    ),
-                    Matrix(
-                        [
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                            [0],
-                        ]
-                    ),
-                ),
-            ),
-        ]
-
-        g = [g1, g2, g3, g4, g5, g6, g7, g8, g9, g10, g11, g12, g13]
-        f: NonDeterministicStochasticUpdate = [
-            f1,
-            f2,
-            f3,
-            f4,
-            f5,
-            f6,
-            f7,
-            f8,
-            f9,
-            f10,
-            f11,
-            f12,
-            f13,
-        ]
-
-        cp = list(
-            map(
-                lambda x: GuardedCommand(
-                    [], And(*g[x[0]], *g[x[1]]), [f[x[0]]] + [f[x[1]]]
-                ),
-                itertools.product(range(0, 6), range(7, 13)),
-            )
-        )
-
-        def strict_g(indexes: list[int], avoid: list[int]):
-            return list(
-                map(
-                    lambda i: GuardedCommand(
-                        [],
-                        And(
-                            *g[i],
-                            *list(
-                                itertools.chain.from_iterable(
-                                    map(
-                                        lambda j: list(
-                                            map(lambda k: negate_constraint(k), g[j])
-                                        ),
-                                        avoid,
-                                    )
-                                )
+            [
+                [
+                    (
+                        1,
+                        (
+                            Matrix(
+                                len(vars),
+                                len(vars),
+                                lambda i, j: 1 if i == j and i in [0, 2, 4] else 0,
+                            ),
+                            Matrix(
+                                len(vars),
+                                1,
+                                lambda i, _: 1
+                                if i == vars.index(q)
+                                else (3 if i in [1, 3] else 0),
                             ),
                         ),
-                        [f[i]],
-                    ),
-                    indexes,
-                )
-            )
-
-        g_neg_g1 = strict_g([i for i in range(6)], [j for j in range(7, 13)])
-        g1_neg_g = strict_g([i for i in range(7, 13)], [j for j in range(6)])
-
-        expected_gc = (
-            cp + g_neg_g1 + g1_neg_g + [GuardedCommand([], And(*g[6]), [f[6]])]
+                    )
+                ]
+            ],
         )
-
         system = ReactiveModule(
-            [(0, 0, 0, 0, COUNTER_INIT, 0)],
-            (pc1, c1, pc2, c2, counter, q),
-            [GuardedCommand([], And(*g[i]), [f[i]]) for i in range(13)],
+            [(COUNTER_INIT, 0, 0, 0, 0, 0)],
+            vars,
+            process(pc1, c1) + process(pc2, c2) + [gc7],
         )
 
         psm = ParitySupermartingale(system)
@@ -594,15 +320,16 @@ for K in KS:
 
         parity_objectives = [var_eq_val(q, 1), var_eq_val(q, 0)]
 
-        lin_lex_psm, invariant = psm.invariant_synthesis_and_verification(
-            q_states, parity_objectives
-        )
+        lin_lex_psm = psm.verification(q_states, parity_objectives)
+        # lin_lex_psm, invariant = psm.invariant_synthesis_and_verification(
+        #     q_states, parity_objectives
+        # )
 
         elapsed_times.append(time.time() - start_time)
         print("Time taken: ", elapsed_times[-1])
         # TODO: Function pretty printing and saving
         lin_lex_psm_str = pretty_lin_lex_psm(system.vars, lin_lex_psm)
-        invariant_str = pretty_state_based_lin_function(system.vars, invariant)
+        # invariant_str = pretty_state_based_lin_function(system.vars, invariant)
         print("LinLexPSM: [")
         for lin_psm in lin_lex_psm_str:
             print("    {")
@@ -610,13 +337,13 @@ for K in KS:
                 print(f"        {state}: {lin_psm},")
             print("    },")
         print("]")
-        print("Invariant: {")
-        [print(f"    {state}: {lin_f},") for state, lin_f in invariant_str.items()]
-        print("}")
+        # print("Invariant: {")
+        # [print(f"    {state}: {lin_f},") for state, lin_f in invariant_str.items()]
+        # print("}")
         with open(f"{output_dir}/run_{RUN}_K_{K}.txt", "w") as f:
             f.write("Result: ")
             f.write(str(lin_lex_psm_str))
-            f.write(str(invariant_str))
+            # f.write(str(invariant_str))
             f.write(f"\nTime taken: {elapsed_times[-1]}")
 
     with open(f"{output_dir}/times.txt", "w") as f:

@@ -35,14 +35,3 @@ module abstract_firewire
     [] s = 8 & x >= 159 - delay -> (s' = 9) & (x' = 0);
     [] s = 9 -> (s' = s);
 endmodule
-
-label "done" = s = 9;
-
-rewards "time"
-    [time] true : 1;
-endrewards
-
-rewards "rounds"
-    [round] true : 1;
-endrewards
-

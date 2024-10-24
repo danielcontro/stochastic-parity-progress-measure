@@ -1,0 +1,49 @@
+mdp
+
+label "finished" = pc1 = 3 & pc2 = 3;
+
+label "all_coins_equal_0" = coin1 = 0 & coin2 = 0;
+
+label "all_coins_equal_1" = coin1 = 1 & coin2 = 1;
+
+label "agree" = coin1 = coin2;
+
+const int N = 2;
+
+const int K;
+
+const int range = (2 * (32 + 1)) * 2;
+
+const int counter_init = (32 + 1) * 2;
+
+const int left = 2;
+
+const int right = (2 * (32 + 1)) * 2 - 2;
+
+global counter : [0 .. 132] init 66;
+
+module process1process2
+    pc1 : [0 .. 3];
+    coin1 : [0 .. 1];
+    pc2 : [0 .. 3];
+    coin2 : [0 .. 1];
+    
+    [] pc1 = 0 -> 0.5:(coin1' = 0) & (pc1' = 1) + 0.5:(coin1' = 1) & (pc1' = 1);
+    [] (pc1 = 1 & coin1 = 0) & counter > 0 -> (counter' = counter - 1) & (pc1' = 2) & (coin1' = 0);
+    [] (pc1 = 1 & coin1 = 1) & counter < 132 -> (counter' = counter + 1) & (pc1' = 2) & (coin1' = 0);
+    [] pc1 = 2 & counter <= 2 -> (pc1' = 3) & (coin1' = 0);
+    [] pc1 = 2 & counter >= 130 -> (pc1' = 3) & (coin1' = 1);
+    [] (pc1 = 2 & counter > 2) & counter < 130 -> (pc1' = 0);
+    [done] pc1 = 3 & pc2 = 3 -> (pc1' = 3) & (pc2' = 3);
+    [] pc2 = 0 -> 0.5:(coin2' = 0) & (pc2' = 1) + 0.5:(coin2' = 1) & (pc2' = 1);
+    [] (pc2 = 1 & coin2 = 0) & counter > 0 -> (counter' = counter - 1) & (pc2' = 2) & (coin2' = 0);
+    [] (pc2 = 1 & coin2 = 1) & counter < 132 -> (counter' = counter + 1) & (pc2' = 2) & (coin2' = 0);
+    [] pc2 = 2 & counter <= 2 -> (pc2' = 3) & (coin2' = 0);
+    [] pc2 = 2 & counter >= 130 -> (pc2' = 3) & (coin2' = 1);
+    [] (pc2 = 2 & counter > 2) & counter < 130 -> (pc2' = 0);
+endmodule
+
+rewards "steps"
+    true : 1;
+endrewards
+

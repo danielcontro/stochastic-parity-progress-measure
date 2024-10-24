@@ -28,7 +28,6 @@ Update = SPLinearFunction
 ProbabilisticUpdate = tuple[float, Update]
 StochasticUpdate = list[ProbabilisticUpdate]
 NonDeterministicStochasticUpdate = list[StochasticUpdate]
-# GuardedCommand = tuple[Guard, NonDeterministicStochasticUpdate]
 
 
 class GuardedCommand:
@@ -157,6 +156,39 @@ class GuardedCommand:
             )
         )
 
+    def _add_automaton_update(self, update: Update, other: Update) -> Update:
+        a, b = update
+        _, other_b = other
+        return a.row_join(zeros(a.rows, 1)).col_join(zeros(1, a.cols + 1)), b.col_join(
+            other_b
+        )
+
+    def add_parity_automaton(self, automaton: Self) -> Optional[Self]:
+        new_guard = And(self.guard, automaton.guard)
+        if not satisfiable(to_z3_dnf(new_guard)):
+            return None
+
+        return GuardedCommand(
+            self.labels + automaton.labels,
+            new_guard,
+            list(
+                map(
+                    lambda x: list(
+                        map(
+                            lambda y: (
+                                fst(y),
+                                self._add_automaton_update(
+                                    snd(y), automaton.update[0][0][1]
+                                ),
+                            ),
+                            x,
+                        )
+                    ),
+                    self.update,
+                )
+            ),
+        )
+
 
 class ReactiveModule:
     def __init__(
@@ -177,10 +209,24 @@ class ReactiveModule:
         self._vars = vars
         self._body = body
         update_var_map(self._vars)
+        print(f"Guarded Commands: {len(self.body)}")
+        updates = sum(
+            list(
+                map(
+                    lambda x: sum(list(map(lambda y: len(y), x.update))),
+                    self.body,
+                )
+            )
+        )
+        print(f"Number of updates: {updates}")
 
     @property
     def init(self) -> list[ProgramState]:
         return self._init
+
+    @init.setter
+    def init(self, value: list[ProgramState]):
+        self._init = value
 
     @property
     def vars(self) -> ProgramVariables:
@@ -437,4 +483,26 @@ class ReactiveModule:
             self._init_composition(other),
             self.vars + tuple(filter(lambda var: var not in self.vars, other.vars)),
             self._body_interleaving(other),
+        )
+
+    def add_parity_automaton(self, automaton: Self):
+        return ReactiveModule(
+            list(map(lambda init: init + automaton.init[0], self.init)),
+            self.vars + automaton.vars,
+            list(
+                filter(
+                    lambda x: x is not None,
+                    list(
+                        chain.from_iterable(
+                            map(
+                                lambda gc_parity: map(
+                                    lambda x: x.add_parity_automaton(gc_parity),
+                                    self.body,
+                                ),
+                                automaton.body,
+                            )
+                        )
+                    ),
+                )
+            ),
         )

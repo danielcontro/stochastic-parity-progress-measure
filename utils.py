@@ -31,6 +31,7 @@ from sympy.logic.boolalg import Boolean, BooleanFalse, BooleanTrue
 from z3 import ArithRef, BoolRef, Real, Solver, Sqrt, sat
 import z3
 
+
 SPLinearFunction = tuple[Matrix, Matrix]
 SPStateBasedLinearFunction = dict[int, SPLinearFunction]
 
@@ -146,6 +147,8 @@ def _parse_constraint(constraint: Relational) -> BoolRef:
             return to_z3_expr(constraint.lhs) >= 0
         case sympy.Equality:
             return to_z3_expr(constraint.lhs) == 0
+        case sympy.Unequality:
+            return to_z3_expr(constraint.lhs) != 0
         case _:
             raise RuntimeError(f"Invalid ordering {type(constraint)} {constraint}")
 
@@ -239,6 +242,11 @@ def DNF_to_linear_function(dnf: Boolean, vars: tuple[Symbol, ...]) -> SPLinearFu
     )
     a, neg_b = linear_eq_to_matrix(constraints, vars)
     return a, -neg_b
+
+
+def equations_to_update(equations, variables: Iterable[Symbol]) -> SPLinearFunction:
+    a, b = linear_eq_to_matrix(equations, variables)
+    return a, -b
 
 
 def negate_constraint(constraint) -> Boolean | Relational:

@@ -5051,14 +5051,3 @@ module wire12node1wire21node2
     [] s2 = 7 & s1 = 8 -> (s2' = s2);
     [] s2 = 8 & s1 = 7 -> (s2' = s2);
 endmodule
-
-label "done" = s1 = 8 & s2 = 7 | s1 = 7 & s2 = 8;
-
-rewards "time"
-    [time] true : 1;
-endrewards
-
-rewards "time_sending"
-    [time] w12 > 0 | w21 > 0 : 1;
-endrewards
-

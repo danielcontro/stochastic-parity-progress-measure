@@ -1,0 +1,113 @@
+mdp
+
+label "finished" = ((((((((pc1 = 3 & pc2 = 3) & pc3 = 3) & pc4 = 3) & pc5 = 3) & pc6 = 3) & pc7 = 3) & pc8 = 3) & pc9 = 3) & pc10 = 3;
+
+label "all_coins_equal_0" = ((((((((coin1 = 0 & coin2 = 0) & coin3 = 0) & coin4 = 0) & coin5 = 0) & coin6 = 0) & coin7 = 0) & coin8 = 0) & coin9 = 0) & coin10 = 0;
+
+label "all_coins_equal_1" = ((((((((coin1 = 1 & coin2 = 1) & coin3 = 1) & coin4 = 1) & coin5 = 1) & coin6 = 1) & coin7 = 1) & coin8 = 1) & coin9 = 1) & coin10 = 1;
+
+label "agree" = (((((((coin1 = coin2 & coin2 = coin3) & coin3 = coin4) & coin4 = coin5) & coin5 = coin6) & coin6 = coin7) & coin7 = coin8) & coin8 = coin9) & coin9 = coin10;
+
+const int N = 10;
+
+const int K;
+
+const int range = (2 * (4096 + 1)) * 10;
+
+const int counter_init = (4096 + 1) * 10;
+
+const int left = 10;
+
+const int right = (2 * (4096 + 1)) * 10 - 10;
+
+global counter : [0 .. 81940] init 40970;
+
+module process1process2process3process4process5process6process7process8process9process10
+    pc1 : [0 .. 3];
+    coin1 : [0 .. 1];
+    pc2 : [0 .. 3];
+    coin2 : [0 .. 1];
+    pc3 : [0 .. 3];
+    coin3 : [0 .. 1];
+    pc4 : [0 .. 3];
+    coin4 : [0 .. 1];
+    pc5 : [0 .. 3];
+    coin5 : [0 .. 1];
+    pc6 : [0 .. 3];
+    coin6 : [0 .. 1];
+    pc7 : [0 .. 3];
+    coin7 : [0 .. 1];
+    pc8 : [0 .. 3];
+    coin8 : [0 .. 1];
+    pc9 : [0 .. 3];
+    coin9 : [0 .. 1];
+    pc10 : [0 .. 3];
+    coin10 : [0 .. 1];
+    
+    [] pc1 = 0 -> 0.5:(coin1' = 0) & (pc1' = 1) + 0.5:(coin1' = 1) & (pc1' = 1);
+    [] (pc1 = 1 & coin1 = 0) & counter > 0 -> (counter' = counter - 1) & (pc1' = 2) & (coin1' = 0);
+    [] (pc1 = 1 & coin1 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc1' = 2) & (coin1' = 0);
+    [] pc1 = 2 & counter <= 10 -> (pc1' = 3) & (coin1' = 0);
+    [] pc1 = 2 & counter >= 81930 -> (pc1' = 3) & (coin1' = 1);
+    [] (pc1 = 2 & counter > 10) & counter < 81930 -> (pc1' = 0);
+    [done] pc1 = 3 & (pc2 = 3 & (pc3 = 3 & (pc4 = 3 & (pc5 = 3 & (pc6 = 3 & (pc7 = 3 & (pc8 = 3 & (pc9 = 3 & pc10 = 3)))))))) -> (pc1' = 3) & (pc2' = 3) & (pc3' = 3) & (pc4' = 3) & (pc5' = 3) & (pc6' = 3) & (pc7' = 3) & (pc8' = 3) & (pc9' = 3) & (pc10' = 3);
+    [] pc2 = 0 -> 0.5:(coin2' = 0) & (pc2' = 1) + 0.5:(coin2' = 1) & (pc2' = 1);
+    [] (pc2 = 1 & coin2 = 0) & counter > 0 -> (counter' = counter - 1) & (pc2' = 2) & (coin2' = 0);
+    [] (pc2 = 1 & coin2 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc2' = 2) & (coin2' = 0);
+    [] pc2 = 2 & counter <= 10 -> (pc2' = 3) & (coin2' = 0);
+    [] pc2 = 2 & counter >= 81930 -> (pc2' = 3) & (coin2' = 1);
+    [] (pc2 = 2 & counter > 10) & counter < 81930 -> (pc2' = 0);
+    [] pc3 = 0 -> 0.5:(coin3' = 0) & (pc3' = 1) + 0.5:(coin3' = 1) & (pc3' = 1);
+    [] (pc3 = 1 & coin3 = 0) & counter > 0 -> (counter' = counter - 1) & (pc3' = 2) & (coin3' = 0);
+    [] (pc3 = 1 & coin3 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc3' = 2) & (coin3' = 0);
+    [] pc3 = 2 & counter <= 10 -> (pc3' = 3) & (coin3' = 0);
+    [] pc3 = 2 & counter >= 81930 -> (pc3' = 3) & (coin3' = 1);
+    [] (pc3 = 2 & counter > 10) & counter < 81930 -> (pc3' = 0);
+    [] pc4 = 0 -> 0.5:(coin4' = 0) & (pc4' = 1) + 0.5:(coin4' = 1) & (pc4' = 1);
+    [] (pc4 = 1 & coin4 = 0) & counter > 0 -> (counter' = counter - 1) & (pc4' = 2) & (coin4' = 0);
+    [] (pc4 = 1 & coin4 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc4' = 2) & (coin4' = 0);
+    [] pc4 = 2 & counter <= 10 -> (pc4' = 3) & (coin4' = 0);
+    [] pc4 = 2 & counter >= 81930 -> (pc4' = 3) & (coin4' = 1);
+    [] (pc4 = 2 & counter > 10) & counter < 81930 -> (pc4' = 0);
+    [] pc5 = 0 -> 0.5:(coin5' = 0) & (pc5' = 1) + 0.5:(coin5' = 1) & (pc5' = 1);
+    [] (pc5 = 1 & coin5 = 0) & counter > 0 -> (counter' = counter - 1) & (pc5' = 2) & (coin5' = 0);
+    [] (pc5 = 1 & coin5 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc5' = 2) & (coin5' = 0);
+    [] pc5 = 2 & counter <= 10 -> (pc5' = 3) & (coin5' = 0);
+    [] pc5 = 2 & counter >= 81930 -> (pc5' = 3) & (coin5' = 1);
+    [] (pc5 = 2 & counter > 10) & counter < 81930 -> (pc5' = 0);
+    [] pc6 = 0 -> 0.5:(coin6' = 0) & (pc6' = 1) + 0.5:(coin6' = 1) & (pc6' = 1);
+    [] (pc6 = 1 & coin6 = 0) & counter > 0 -> (counter' = counter - 1) & (pc6' = 2) & (coin6' = 0);
+    [] (pc6 = 1 & coin6 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc6' = 2) & (coin6' = 0);
+    [] pc6 = 2 & counter <= 10 -> (pc6' = 3) & (coin6' = 0);
+    [] pc6 = 2 & counter >= 81930 -> (pc6' = 3) & (coin6' = 1);
+    [] (pc6 = 2 & counter > 10) & counter < 81930 -> (pc6' = 0);
+    [] pc7 = 0 -> 0.5:(coin7' = 0) & (pc7' = 1) + 0.5:(coin7' = 1) & (pc7' = 1);
+    [] (pc7 = 1 & coin7 = 0) & counter > 0 -> (counter' = counter - 1) & (pc7' = 2) & (coin7' = 0);
+    [] (pc7 = 1 & coin7 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc7' = 2) & (coin7' = 0);
+    [] pc7 = 2 & counter <= 10 -> (pc7' = 3) & (coin7' = 0);
+    [] pc7 = 2 & counter >= 81930 -> (pc7' = 3) & (coin7' = 1);
+    [] (pc7 = 2 & counter > 10) & counter < 81930 -> (pc7' = 0);
+    [] pc8 = 0 -> 0.5:(coin8' = 0) & (pc8' = 1) + 0.5:(coin8' = 1) & (pc8' = 1);
+    [] (pc8 = 1 & coin8 = 0) & counter > 0 -> (counter' = counter - 1) & (pc8' = 2) & (coin8' = 0);
+    [] (pc8 = 1 & coin8 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc8' = 2) & (coin8' = 0);
+    [] pc8 = 2 & counter <= 10 -> (pc8' = 3) & (coin8' = 0);
+    [] pc8 = 2 & counter >= 81930 -> (pc8' = 3) & (coin8' = 1);
+    [] (pc8 = 2 & counter > 10) & counter < 81930 -> (pc8' = 0);
+    [] pc9 = 0 -> 0.5:(coin9' = 0) & (pc9' = 1) + 0.5:(coin9' = 1) & (pc9' = 1);
+    [] (pc9 = 1 & coin9 = 0) & counter > 0 -> (counter' = counter - 1) & (pc9' = 2) & (coin9' = 0);
+    [] (pc9 = 1 & coin9 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc9' = 2) & (coin9' = 0);
+    [] pc9 = 2 & counter <= 10 -> (pc9' = 3) & (coin9' = 0);
+    [] pc9 = 2 & counter >= 81930 -> (pc9' = 3) & (coin9' = 1);
+    [] (pc9 = 2 & counter > 10) & counter < 81930 -> (pc9' = 0);
+    [] pc10 = 0 -> 0.5:(coin10' = 0) & (pc10' = 1) + 0.5:(coin10' = 1) & (pc10' = 1);
+    [] (pc10 = 1 & coin10 = 0) & counter > 0 -> (counter' = counter - 1) & (pc10' = 2) & (coin10' = 0);
+    [] (pc10 = 1 & coin10 = 1) & counter < 81940 -> (counter' = counter + 1) & (pc10' = 2) & (coin10' = 0);
+    [] pc10 = 2 & counter <= 10 -> (pc10' = 3) & (coin10' = 0);
+    [] pc10 = 2 & counter >= 81930 -> (pc10' = 3) & (coin10' = 1);
+    [] (pc10 = 2 & counter > 10) & counter < 81930 -> (pc10' = 0);
+endmodule
+
+rewards "steps"
+    true : 1;
+endrewards
+
